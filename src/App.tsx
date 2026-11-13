@@ -1,122 +1,214 @@
-import { useState } from 'react'
-import heroImg from './assets/hero.png'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import './App.css'
+import { useEffect, useState } from 'react';
+import { Shield, Cpu, Flame } from 'lucide-react';
+import { RequestAuditorView } from './components/audit/RequestAuditorView';
+import { DocumentWorkspace } from './components/canvas/DocumentWorkspace';
+import { SnippetApprovalList } from './components/approval/SnippetApprovalList';
+import { NetworkTapLog } from './components/network/NetworkTapLog';
+import { DisclosureReceiptModal } from './components/receipt/DisclosureReceiptModal';
+import type {
+  VerificationRequest,
+  AuditReport,
+  SyntheticDocument,
+  ExtractedCandidate,
+  ApprovedSnippet,
+  DisclosureReceipt,
+} from './types';
+import { SYNTHETIC_PAYSLIP_CLEAN, SAMPLE_VERIFICATION_REQUESTS } from './lib/documents/syntheticData';
+import { runDeviceCalibration, type DeviceCalibrationResult } from './lib/ai/calibration';
+import { getFirebaseStatus, type FirebaseClientStatus } from './lib/ai/client';
+import { extractFieldOnDevice, composeVerifiedAnswerSheet } from './lib/ai/hybridModel';
+import { computeSha256 } from './lib/defense/crypto';
+import { telemetryStore } from './lib/network/telemetryStore';
 
-function App() {
-  const [count, setCount] = useState(0)
+export default function App() {
+  const [deviceCalib, setDeviceCalib] = useState<DeviceCalibrationResult | null>(null);
+  const [firebaseStatus, setFirebaseStatus] = useState<FirebaseClientStatus | null>(null);
+
+  const [currentRequest, setCurrentRequest] = useState<VerificationRequest>(SAMPLE_VERIFICATION_REQUESTS[0]);
+  const [currentAudit, setCurrentAudit] = useState<AuditReport | null>(null);
+  const [selectedDoc, setSelectedDoc] = useState<SyntheticDocument>(SYNTHETIC_PAYSLIP_CLEAN);
+
+  const [candidates, setCandidates] = useState<ExtractedCandidate[]>([]);
+  const [approvedKeys, setApprovedKeys] = useState<Set<string>>(new Set());
+
+  const [isExtracting, setIsExtracting] = useState(false);
+  const [isComposing, setIsComposing] = useState(false);
+
+  const [activeReceipt, setActiveReceipt] = useState<DisclosureReceipt | null>(null);
+  const [finalCoverLetter, setFinalCoverLetter] = useState<string>('');
+
+  useEffect(() => {
+    runDeviceCalibration().then(setDeviceCalib);
+    setFirebaseStatus(getFirebaseStatus());
+  }, []);
+
+  const handleRequestPlanned = (req: VerificationRequest, audit: AuditReport) => {
+    setCurrentRequest(req);
+    setCurrentAudit(audit);
+    setCandidates([]);
+    setApprovedKeys(new Set());
+  };
+
+  const handleStartExtraction = async () => {
+    if (!currentAudit || currentAudit.recommendedMinimalFields.length === 0) return;
+    setIsExtracting(true);
+    setCandidates([]);
+    setApprovedKeys(new Set());
+
+    try {
+      const extracted: ExtractedCandidate[] = [];
+      const newApproved = new Set<string>();
+
+      for (const job of currentAudit.recommendedMinimalFields) {
+        const candidate = await extractFieldOnDevice(job, selectedDoc.rawText, 1);
+        extracted.push(candidate);
+        if (candidate.found && candidate.isGrounded) {
+          newApproved.add(candidate.fieldKey);
+        }
+      }
+
+      setCandidates(extracted);
+      setApprovedKeys(newApproved);
+    } finally {
+      setIsExtracting(false);
+    }
+  };
+
+  const handleToggleApproval = (fieldKey: string) => {
+    setApprovedKeys((prev) => {
+      const next = new Set(prev);
+      if (next.has(fieldKey)) {
+        next.delete(fieldKey);
+      } else {
+        next.add(fieldKey);
+      }
+      return next;
+    });
+  };
+
+  const handleComposeVerifiedSheet = async () => {
+    if (!currentAudit) return;
+    setIsComposing(true);
+
+    try {
+      const approvedCandidates = candidates.filter((c) => approvedKeys.has(c.fieldKey));
+      const approvedSnippets: ApprovedSnippet[] = [];
+
+      for (const cand of approvedCandidates) {
+        const hash = await computeSha256(cand.exactQuote || String(cand.value));
+        approvedSnippets.push({
+          fieldKey: cand.fieldKey,
+          fieldLabel: cand.fieldLabel,
+          value: cand.value || '',
+          exactQuote: cand.exactQuote || '',
+          pageNumber: cand.pageNumber || 1,
+          sourceHash: hash.slice(0, 16),
+          approvedByUser: true,
+        });
+      }
+
+      const { coverLetter } = await composeVerifiedAnswerSheet(
+        currentRequest,
+        approvedSnippets,
+        currentAudit.politeCounterProposal
+      );
+
+      const receipt = telemetryStore.generateReceipt(approvedSnippets.length, 3);
+      const receiptHash = await computeSha256(coverLetter);
+      receipt.sha256Attestation = receiptHash.slice(0, 24);
+
+      setFinalCoverLetter(coverLetter);
+      setActiveReceipt(receipt);
+    } finally {
+      setIsComposing(false);
+    }
+  };
 
   return (
     <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
+      <header className="airlock-header">
+        <div className="brand-section">
+          <div className="brand-icon">
+            <Shield size={24} color="#fff" />
+          </div>
+          <div>
+            <div className="brand-title">
+              AIRLOCK <span style={{ color: '#38bdf8', fontSize: '18px' }}>v2</span>
+            </div>
+            <div className="brand-tagline">Answer only what's asked. Reveal nothing else.</div>
+          </div>
         </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.tsx</code> and save to test <code>HMR</code>
-          </p>
-        </div>
-        <button
-          type="button"
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
-        </button>
-      </section>
 
-      <div className="ticks"></div>
+        <div className="header-status-group">
+          {deviceCalib && (
+            <div
+              className={`status-pill ${deviceCalib.isNanoAvailable ? 'success' : 'warning'}`}
+              title={deviceCalib.diagnosticMessage}
+            >
+              <Cpu size={14} />
+              <span>
+                {deviceCalib.isNanoAvailable
+                  ? 'Gemini Nano Active (On-Device)'
+                  : 'Deterministic Local Mode'}
+              </span>
+            </div>
+          )}
 
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
-        </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
+          {firebaseStatus && (
+            <div
+              className={`status-pill ${firebaseStatus.isConfigured ? 'success' : ''}`}
+              title={firebaseStatus.projectId ? `Project: ${firebaseStatus.projectId}` : 'Running with local AI fallback'}
+            >
+              <Flame size={14} />
+              <span>
+                {firebaseStatus.isConfigured ? `Firebase: ${firebaseStatus.projectId}` : 'Hybrid SDK Ready'}
+              </span>
+            </div>
+          )}
 
-      <div className="ticks"></div>
-      <section id="spacer"></section>
+          <div className="meter-badge">
+            <span style={{ color: 'var(--text-dim)' }}>Transmitted:</span>
+            <span className="meter-highlight">
+              {telemetryStore.getTotalBytesSent() > 0
+                ? `${telemetryStore.getTotalBytesSent()} B`
+                : '0 Bytes (Private)'}
+            </span>
+          </div>
+        </div>
+      </header>
+
+      <main className="dashboard-grid">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+          <RequestAuditorView onRequestPlanned={handleRequestPlanned} isLoading={isExtracting} />
+          <DocumentWorkspace
+            selectedDocument={selectedDoc}
+            onSelectDocument={setSelectedDoc}
+            onStartExtraction={handleStartExtraction}
+            canExtract={Boolean(currentAudit && currentAudit.recommendedMinimalFields.length > 0)}
+            isExtracting={isExtracting}
+          />
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+          <SnippetApprovalList
+            candidates={candidates}
+            approvedKeys={approvedKeys}
+            onToggleApproval={handleToggleApproval}
+            onComposeVerifiedSheet={handleComposeVerifiedSheet}
+            isComposing={isComposing}
+            canCompose={approvedKeys.size > 0}
+          />
+          <NetworkTapLog />
+        </div>
+      </main>
+
+      {activeReceipt && (
+        <DisclosureReceiptModal
+          receipt={activeReceipt}
+          coverLetter={finalCoverLetter}
+          onClose={() => setActiveReceipt(null)}
+        />
+      )}
     </>
-  )
+  );
 }
-
-export default App
