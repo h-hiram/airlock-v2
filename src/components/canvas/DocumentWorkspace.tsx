@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { FileText, Lock, ShieldCheck, Upload, AlertCircle } from 'lucide-react';
+import { FileText, Lock, ShieldCheck, Upload, AlertCircle, Cpu, CloudLightning } from 'lucide-react';
 import type { SyntheticDocument } from '../../types';
 import {
   SYNTHETIC_PAYSLIP_CLEAN,
@@ -11,7 +11,7 @@ import { telemetryStore } from '../../lib/network/telemetryStore';
 interface Props {
   selectedDocument: SyntheticDocument;
   onSelectDocument: (doc: SyntheticDocument) => void;
-  onStartExtraction: () => void;
+  onStartExtraction: (mode: 'prefer_on_device' | 'only_on_device') => void;
   canExtract: boolean;
   isExtracting: boolean;
 }
@@ -24,6 +24,7 @@ export const DocumentWorkspace: React.FC<Props> = ({
   isExtracting,
 }) => {
   const [customFileNotice, setCustomFileNotice] = useState<string | null>(null);
+  const [routingMode, setRoutingMode] = useState<'prefer_on_device' | 'only_on_device'>('prefer_on_device');
 
   useEffect(() => {
     telemetryStore.setDocumentBytesHeld(selectedDocument.fileSizeBytes);
@@ -57,8 +58,8 @@ export const DocumentWorkspace: React.FC<Props> = ({
         <div className="card-title-group">
           <div className="step-indicator">2</div>
           <div>
-            <h3 className="card-title">Local Document Vault</h3>
-            <p className="card-subtitle">Document bytes are isolated locally. Never uploaded to cloud AI.</p>
+            <h3 className="card-title">Local Document Vault & Hybrid Routing</h3>
+            <p className="card-subtitle">Document bytes are isolated locally. Choose your hybrid execution policy.</p>
           </div>
         </div>
 
@@ -122,26 +123,93 @@ export const DocumentWorkspace: React.FC<Props> = ({
         </div>
       )}
 
-      <div className="doc-preview-box">
-        {selectedDocument.rawText}
+      <div className="doc-preview-box">{selectedDocument.rawText}</div>
+
+      {/* Hybrid Routing Policy Selector */}
+      <div
+        style={{
+          background: 'var(--bg-surface)',
+          border: '1px solid var(--border-subtle)',
+          borderRadius: '8px',
+          padding: '12px 14px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '8px',
+        }}
+      >
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <span style={{ fontSize: '12px', fontWeight: 600, color: '#38bdf8' }}>
+            HYBRID INFERENCE ROUTING POLICY
+          </span>
+          <span style={{ fontSize: '11px', color: 'var(--text-dim)' }}>
+            Firebase AI Logic <code>InferenceMode</code>
+          </span>
+        </div>
+
+        <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+          <label
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              fontSize: '12px',
+              color: routingMode === 'prefer_on_device' ? '#fff' : 'var(--text-muted)',
+              cursor: 'pointer',
+            }}
+          >
+            <input
+              type="radio"
+              name="routing_policy"
+              value="prefer_on_device"
+              checked={routingMode === 'prefer_on_device'}
+              onChange={() => setRoutingMode('prefer_on_device')}
+            />
+            <CloudLightning size={14} color="#38bdf8" />
+            <span>
+              <strong>PREFER_ON_DEVICE (Hackathon Default)</strong> — Runs on Gemini Nano; falls back to Cloud Gemini if unavailable.
+            </span>
+          </label>
+
+          <label
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              fontSize: '12px',
+              color: routingMode === 'only_on_device' ? '#fff' : 'var(--text-muted)',
+              cursor: 'pointer',
+            }}
+          >
+            <input
+              type="radio"
+              name="routing_policy"
+              value="only_on_device"
+              checked={routingMode === 'only_on_device'}
+              onChange={() => setRoutingMode('only_on_device')}
+            />
+            <Cpu size={14} color="#10b981" />
+            <span>
+              <strong>ONLY_ON_DEVICE (Strict Air-Gapped)</strong> — Enforces local execution only.
+            </span>
+          </label>
+        </div>
       </div>
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: 'var(--text-dim)' }}>
           <ShieldCheck size={14} color="var(--color-success)" />
-          <span>Document parsed in local memory. 0 outbound network requests.</span>
+          <span>Local memory buffer active. Zero outbound network requests until approved.</span>
         </div>
 
         <button
           type="button"
           className="btn-primary"
-          onClick={onStartExtraction}
+          onClick={() => onStartExtraction(routingMode)}
           disabled={!canExtract || isExtracting}
         >
-          {isExtracting ? 'Extracting On-Device with Nano...' : 'Run On-Device Extraction'}
+          {isExtracting ? 'Extracting with Firebase AI Logic...' : 'Run Hybrid Extraction'}
         </button>
       </div>
     </div>
   );
 };
-

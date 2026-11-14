@@ -58,6 +58,13 @@ export function installNetworkTap(): void {
       }
 
       if (tier !== 'other' || url.includes('googleapis.com')) {
+        console.log(
+          `%c[AIRLOCK:NETWORK-TAP] Outbound ${method} ➔ ${url} [${tier}] (%d bytes sent, %d bytes received, status: %d)`,
+          'background: #1e1b4b; color: #c7d2fe; padding: 2px 6px; border-radius: 4px;',
+          requestBytes,
+          responseBytes,
+          response.status
+        );
         telemetryStore.recordEntry({
           url,
           method,

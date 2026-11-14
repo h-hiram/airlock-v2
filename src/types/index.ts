@@ -72,6 +72,18 @@ export interface DisclosureReceipt {
   sha256Attestation: string;
 }
 
+export interface ExecutionTrace {
+  id: string;
+  timestamp: number;
+  stepName: string;
+  tier: 'cloud_gemini' | 'on_device_nano' | 'local_deterministic';
+  modelIdentifier: string;
+  promptSent: string;
+  rawResponseText: string;
+  latencyMs: number;
+  networkBytesTransmitted: number;
+}
+
 export interface SyntheticDocument {
   id: string;
   title: string;

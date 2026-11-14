@@ -1,23 +1,27 @@
 import React, { useEffect, useState } from 'react';
-import { Activity, ShieldCheck, Trash2 } from 'lucide-react';
+import { Activity, ShieldCheck, Trash2, Cpu } from 'lucide-react';
 import type { NetworkTelemetryEntry } from '../../types';
 import { telemetryStore } from '../../lib/network/telemetryStore';
 
 export const NetworkTapLog: React.FC = () => {
   const [entries, setEntries] = useState<NetworkTelemetryEntry[]>(telemetryStore.getEntries());
   const [docBytesHeld, setDocBytesHeld] = useState(telemetryStore.getDocumentBytesHeld());
+  const [disclosedBytes, setDisclosedBytes] = useState(telemetryStore.getDisclosedSnippetBytes());
 
   useEffect(() => {
     const unsubscribe = telemetryStore.subscribe(() => {
       setEntries(telemetryStore.getEntries());
       setDocBytesHeld(telemetryStore.getDocumentBytesHeld());
+      setDisclosedBytes(telemetryStore.getDisclosedSnippetBytes());
     });
     return unsubscribe;
   }, []);
 
   const totalSent = entries.reduce((acc, curr) => acc + curr.requestBytes, 0);
-  const ratio = docBytesHeld > 0 ? ((totalSent / docBytesHeld) * 100).toFixed(3) : '0.000';
-  const preventedPercent = docBytesHeld > 0 ? (100 - Number(ratio)).toFixed(2) : '100.00';
+  const sealedPercent =
+    docBytesHeld > 0 ? (((docBytesHeld - disclosedBytes) / docBytesHeld) * 100).toFixed(2) : '100.00';
+  const docDisclosureRatio =
+    docBytesHeld > 0 ? ((disclosedBytes / docBytesHeld) * 100).toFixed(2) : '0.00';
 
   return (
     <div className="network-tap-card">
@@ -32,7 +36,7 @@ export const NetworkTapLog: React.FC = () => {
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           <div className="status-pill success" style={{ fontSize: '11px' }}>
             <ShieldCheck size={12} />
-            <span>{preventedPercent}% of Data Prevented from Leaving</span>
+            <span>{sealedPercent}% of Source Document Sealed Locally</span>
           </div>
 
           <button
@@ -47,15 +51,15 @@ export const NetworkTapLog: React.FC = () => {
         </div>
       </div>
 
-      <div style={{ display: 'flex', gap: '16px', fontSize: '12px', fontFamily: 'var(--font-mono)' }}>
+      <div style={{ display: 'flex', gap: '16px', fontSize: '12px', fontFamily: 'var(--font-mono)', flexWrap: 'wrap' }}>
         <span style={{ color: 'var(--text-muted)' }}>
           Document Held in Browser: <strong style={{ color: '#fff' }}>{docBytesHeld.toLocaleString()} bytes</strong>
         </span>
         <span style={{ color: 'var(--text-muted)' }}>
-          Outbound Firebase Payload: <strong style={{ color: 'var(--color-accent)' }}>{totalSent.toLocaleString()} bytes</strong>
+          Approved Snippets Disclosed: <strong style={{ color: 'var(--color-success)' }}>{disclosedBytes} bytes ({docDisclosureRatio}%)</strong>
         </span>
         <span style={{ color: 'var(--text-muted)' }}>
-          Transmission Ratio: <strong style={{ color: 'var(--color-success)' }}>{ratio}%</strong>
+          Protocol Prompt Overhead: <strong style={{ color: 'var(--color-accent)' }}>{totalSent.toLocaleString()} bytes</strong>
         </span>
       </div>
 
@@ -112,4 +116,3 @@ export const NetworkTapLog: React.FC = () => {
     </div>
   );
 };
-

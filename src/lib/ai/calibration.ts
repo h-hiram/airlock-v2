@@ -17,35 +17,47 @@ export async function runDeviceCalibration(): Promise<DeviceCalibrationResult> {
   }
 
   try {
-    const promptApi = (window as unknown as { LanguageModel?: { availability: () => Promise<string> } }).LanguageModel;
-    const legacyAi = (window as unknown as { ai?: { languageModel?: { capabilities: () => Promise<{ available: string }> } } }).ai;
+    const win = window as unknown as {
+      LanguageModel?: { availability?: () => Promise<string>; create?: (opts?: unknown) => Promise<unknown> };
+      ai?: {
+        languageModel?: {
+          availability?: () => Promise<string>;
+          capabilities?: () => Promise<{ available: string }>;
+          create?: (opts?: unknown) => Promise<unknown>;
+        };
+      };
+    };
 
-    let status = 'no';
+    let status: string | undefined;
 
-    if (promptApi && typeof promptApi.availability === 'function') {
-      status = await promptApi.availability();
-    } else if (legacyAi?.languageModel && typeof legacyAi.languageModel.capabilities === 'function') {
-      const caps = await legacyAi.languageModel.capabilities();
+    if (typeof win.LanguageModel?.availability === 'function') {
+      status = await win.LanguageModel.availability();
+    } else if (typeof win.ai?.languageModel?.availability === 'function') {
+      status = await win.ai.languageModel.availability();
+    } else if (typeof win.ai?.languageModel?.capabilities === 'function') {
+      const caps = await win.ai.languageModel.capabilities();
       status = caps.available;
-    } else {
+    }
+
+    if (!status) {
       return {
         isNanoAvailable: false,
         availabilityStatus: 'unsupported_browser',
         recommendedRoute: 'local_deterministic',
         diagnosticMessage:
-          'Chrome built-in Prompt API not detected. Airlock will route to zero-AI deterministic local extraction with manual snippet approval.',
+          'Chrome built-in Prompt API not detected. Enable chrome://flags/#prompt-api-for-gemini-nano-multimodal-input to activate on-device inference.',
       };
     }
 
     const isAvailable = status === 'available' || status === 'readily';
-    const isDownloading = status === 'after-download';
+    const isDownloading = status === 'after-download' || status === 'downloading';
 
     if (isAvailable) {
       return {
         isNanoAvailable: true,
         availabilityStatus: 'available',
         recommendedRoute: 'on_device',
-        diagnosticMessage: 'Gemini Nano is active and verified on this device. Full on-device private extraction enabled.',
+        diagnosticMessage: 'Gemini Nano is active and verified available in this Chrome session.',
       };
     }
 
@@ -54,7 +66,7 @@ export async function runDeviceCalibration(): Promise<DeviceCalibrationResult> {
         isNanoAvailable: false,
         availabilityStatus: 'after-download',
         recommendedRoute: 'local_deterministic',
-        diagnosticMessage: 'Gemini Nano model download in progress on this device. Routing to local deterministic extraction while downloading.',
+        diagnosticMessage: 'Gemini Nano model download in progress on this device.',
       };
     }
 
@@ -62,15 +74,14 @@ export async function runDeviceCalibration(): Promise<DeviceCalibrationResult> {
       isNanoAvailable: false,
       availabilityStatus: 'no',
       recommendedRoute: 'local_deterministic',
-      diagnosticMessage: 'Local Gemini Nano is unsupported on this hardware/browser profile. Using secure deterministic local extraction.',
+      diagnosticMessage: 'Gemini Nano is unsupported on this hardware profile.',
     };
   } catch (error) {
     return {
       isNanoAvailable: false,
       availabilityStatus: 'no',
       recommendedRoute: 'local_deterministic',
-      diagnosticMessage: `Calibration probe error: ${String(error)}`,
+      diagnosticMessage: `Calibration error: ${String(error)}`,
     };
   }
 }
-

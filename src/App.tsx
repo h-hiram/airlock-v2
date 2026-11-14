@@ -1,10 +1,25 @@
 import { useEffect, useState } from 'react';
-import { Shield, Cpu, Flame } from 'lucide-react';
+import {
+  Shield,
+  Cpu,
+  Flame,
+  Settings,
+  ArrowRight,
+  ArrowLeft,
+  CheckCircle2,
+  FileText,
+  Search,
+  CheckSquare,
+  Award,
+} from 'lucide-react';
+import { InferenceMode } from 'firebase/ai';
 import { RequestAuditorView } from './components/audit/RequestAuditorView';
 import { DocumentWorkspace } from './components/canvas/DocumentWorkspace';
 import { SnippetApprovalList } from './components/approval/SnippetApprovalList';
 import { NetworkTapLog } from './components/network/NetworkTapLog';
 import { DisclosureReceiptModal } from './components/receipt/DisclosureReceiptModal';
+import { TraceDrawer } from './components/common/TraceDrawer';
+import { ConfigModal } from './components/common/ConfigModal';
 import type {
   VerificationRequest,
   AuditReport,
@@ -21,8 +36,11 @@ import { computeSha256 } from './lib/defense/crypto';
 import { telemetryStore } from './lib/network/telemetryStore';
 
 export default function App() {
+  const [currentStep, setCurrentStep] = useState<1 | 2 | 3 | 4>(1);
+
   const [deviceCalib, setDeviceCalib] = useState<DeviceCalibrationResult | null>(null);
   const [firebaseStatus, setFirebaseStatus] = useState<FirebaseClientStatus | null>(null);
+  const [isConfigOpen, setIsConfigOpen] = useState(false);
 
   const [currentRequest, setCurrentRequest] = useState<VerificationRequest>(SAMPLE_VERIFICATION_REQUESTS[0]);
   const [currentAudit, setCurrentAudit] = useState<AuditReport | null>(null);
@@ -37,9 +55,13 @@ export default function App() {
   const [activeReceipt, setActiveReceipt] = useState<DisclosureReceipt | null>(null);
   const [finalCoverLetter, setFinalCoverLetter] = useState<string>('');
 
-  useEffect(() => {
+  const refreshStatus = () => {
     runDeviceCalibration().then(setDeviceCalib);
     setFirebaseStatus(getFirebaseStatus());
+  };
+
+  useEffect(() => {
+    refreshStatus();
   }, []);
 
   const handleRequestPlanned = (req: VerificationRequest, audit: AuditReport) => {
@@ -49,18 +71,21 @@ export default function App() {
     setApprovedKeys(new Set());
   };
 
-  const handleStartExtraction = async () => {
+  const handleStartExtraction = async (mode: 'prefer_on_device' | 'only_on_device' = 'prefer_on_device') => {
     if (!currentAudit || currentAudit.recommendedMinimalFields.length === 0) return;
     setIsExtracting(true);
     setCandidates([]);
     setApprovedKeys(new Set());
+
+    const inferenceMode =
+      mode === 'only_on_device' ? InferenceMode.ONLY_ON_DEVICE : InferenceMode.PREFER_ON_DEVICE;
 
     try {
       const extracted: ExtractedCandidate[] = [];
       const newApproved = new Set<string>();
 
       for (const job of currentAudit.recommendedMinimalFields) {
-        const candidate = await extractFieldOnDevice(job, selectedDoc.rawText, 1);
+        const candidate = await extractFieldOnDevice(job, selectedDoc.rawText, 1, inferenceMode);
         extracted.push(candidate);
         if (candidate.found && candidate.isGrounded) {
           newApproved.add(candidate.fieldKey);
@@ -69,6 +94,7 @@ export default function App() {
 
       setCandidates(extracted);
       setApprovedKeys(newApproved);
+      setCurrentStep(3);
     } finally {
       setIsExtracting(false);
     }
@@ -93,9 +119,12 @@ export default function App() {
     try {
       const approvedCandidates = candidates.filter((c) => approvedKeys.has(c.fieldKey));
       const approvedSnippets: ApprovedSnippet[] = [];
+      let totalSnippetBytes = 0;
 
       for (const cand of approvedCandidates) {
-        const hash = await computeSha256(cand.exactQuote || String(cand.value));
+        const textVal = cand.exactQuote || String(cand.value);
+        totalSnippetBytes += new TextEncoder().encode(textVal).length;
+        const hash = await computeSha256(textVal);
         approvedSnippets.push({
           fieldKey: cand.fieldKey,
           fieldLabel: cand.fieldLabel,
@@ -106,6 +135,8 @@ export default function App() {
           approvedByUser: true,
         });
       }
+
+      telemetryStore.setDisclosedSnippetBytes(totalSnippetBytes);
 
       const { coverLetter } = await composeVerifiedAnswerSheet(
         currentRequest,
@@ -119,10 +150,18 @@ export default function App() {
 
       setFinalCoverLetter(coverLetter);
       setActiveReceipt(receipt);
+      setCurrentStep(4);
     } finally {
       setIsComposing(false);
     }
   };
+
+  const stepsMeta = [
+    { num: 1, label: 'Audit Request', icon: Search },
+    { num: 2, label: 'Document Vault', icon: FileText },
+    { num: 3, label: 'Approval & Defense', icon: CheckSquare },
+    { num: 4, label: 'Receipt & Network Tap', icon: Award },
+  ];
 
   return (
     <>
@@ -148,7 +187,7 @@ export default function App() {
               <Cpu size={14} />
               <span>
                 {deviceCalib.isNanoAvailable
-                  ? 'Gemini Nano Active (On-Device)'
+                  ? 'Gemini Nano Active'
                   : 'Deterministic Local Mode'}
               </span>
             </div>
@@ -166,40 +205,185 @@ export default function App() {
             </div>
           )}
 
-          <div className="meter-badge">
-            <span style={{ color: 'var(--text-dim)' }}>Transmitted:</span>
-            <span className="meter-highlight">
-              {telemetryStore.getTotalBytesSent() > 0
-                ? `${telemetryStore.getTotalBytesSent()} B`
-                : '0 Bytes (Private)'}
-            </span>
-          </div>
+          <button
+            type="button"
+            className="btn-preset"
+            onClick={() => setIsConfigOpen(true)}
+            style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+          >
+            <Settings size={14} />
+            <span>Configure AI</span>
+          </button>
         </div>
       </header>
 
-      <main className="dashboard-grid">
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-          <RequestAuditorView onRequestPlanned={handleRequestPlanned} isLoading={isExtracting} />
-          <DocumentWorkspace
-            selectedDocument={selectedDoc}
-            onSelectDocument={setSelectedDoc}
-            onStartExtraction={handleStartExtraction}
-            canExtract={Boolean(currentAudit && currentAudit.recommendedMinimalFields.length > 0)}
-            isExtracting={isExtracting}
-          />
+      {/* Guided Step Navigation Bar */}
+      <nav
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          background: 'var(--bg-card)',
+          border: '1px solid var(--border-subtle)',
+          borderRadius: '12px',
+          padding: '12px 20px',
+        }}
+      >
+        <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+          {stepsMeta.map((s) => {
+            const Icon = s.icon;
+            const isActive = currentStep === s.num;
+            const isCompleted = currentStep > s.num;
+
+            return (
+              <button
+                key={s.num}
+                type="button"
+                onClick={() => setCurrentStep(s.num as 1 | 2 | 3 | 4)}
+                style={{
+                  background: isActive ? 'var(--color-accent)' : isCompleted ? 'rgba(16, 185, 129, 0.15)' : 'transparent',
+                  border: `1px solid ${isActive ? 'var(--color-accent)' : isCompleted ? 'var(--border-success)' : 'var(--border-subtle)'}`,
+                  color: isActive ? '#fff' : isCompleted ? '#6ee7b7' : 'var(--text-muted)',
+                  borderRadius: '8px',
+                  padding: '8px 14px',
+                  fontSize: '13px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  transition: 'all 0.2s',
+                }}
+              >
+                {isCompleted ? <CheckCircle2 size={14} color="#10b981" /> : <Icon size={14} />}
+                <span>
+                  Step {s.num}: {s.label}
+                </span>
+              </button>
+            );
+          })}
         </div>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-          <SnippetApprovalList
-            candidates={candidates}
-            approvedKeys={approvedKeys}
-            onToggleApproval={handleToggleApproval}
-            onComposeVerifiedSheet={handleComposeVerifiedSheet}
-            isComposing={isComposing}
-            canCompose={approvedKeys.size > 0}
-          />
-          <NetworkTapLog />
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          {currentStep > 1 && (
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={() => setCurrentStep((prev) => (prev - 1) as 1 | 2 | 3 | 4)}
+              style={{ padding: '6px 12px', fontSize: '13px' }}
+            >
+              <ArrowLeft size={14} /> Back
+            </button>
+          )}
+
+          {currentStep < 4 && (
+            <button
+              type="button"
+              className="btn-primary"
+              onClick={() => setCurrentStep((prev) => (prev + 1) as 1 | 2 | 3 | 4)}
+              style={{ padding: '6px 14px', fontSize: '13px' }}
+            >
+              Next Step <ArrowRight size={14} />
+            </button>
+          )}
         </div>
+      </nav>
+
+      {/* Step Content Container */}
+      <main style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+        {currentStep === 1 && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <RequestAuditorView onRequestPlanned={handleRequestPlanned} isLoading={isExtracting} />
+            {currentAudit && (
+              <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                <button
+                  type="button"
+                  className="btn-primary"
+                  onClick={() => setCurrentStep(2)}
+                  style={{ padding: '10px 20px' }}
+                >
+                  Proceed to Step 2: Ingest Document <ArrowRight size={16} />
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {currentStep === 2 && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <DocumentWorkspace
+              selectedDocument={selectedDoc}
+              onSelectDocument={setSelectedDoc}
+              onStartExtraction={handleStartExtraction}
+              canExtract={Boolean(currentAudit && currentAudit.recommendedMinimalFields.length > 0)}
+              isExtracting={isExtracting}
+            />
+          </div>
+        )}
+
+        {currentStep === 3 && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <SnippetApprovalList
+              candidates={candidates}
+              approvedKeys={approvedKeys}
+              onToggleApproval={handleToggleApproval}
+              onComposeVerifiedSheet={handleComposeVerifiedSheet}
+              isComposing={isComposing}
+              canCompose={approvedKeys.size > 0}
+            />
+          </div>
+        )}
+
+        {currentStep === 4 && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+            {activeReceipt && (
+              <div className="airlock-card">
+                <div className="card-header">
+                  <div className="card-title-group">
+                    <Award size={20} color="var(--color-success)" />
+                    <div>
+                      <h3 className="card-title">Disclosure Completed & Attested</h3>
+                      <p className="card-subtitle">
+                        Certified answer sheet prepared from approved snippets alone.
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    className="btn-primary"
+                    onClick={() => setActiveReceipt(activeReceipt)}
+                  >
+                    View Cryptographic Receipt
+                  </button>
+                </div>
+
+                <div style={{ background: '#090d16', border: '1px solid #1e293b', borderRadius: '10px', padding: '16px' }}>
+                  <span style={{ fontSize: '12px', fontWeight: 600, color: '#38bdf8', display: 'block', marginBottom: '8px' }}>
+                    CERTIFIED ANSWER SHEET PREVIEW
+                  </span>
+                  <pre
+                    style={{
+                      fontFamily: 'var(--font-mono)',
+                      fontSize: '12px',
+                      whiteSpace: 'pre-wrap',
+                      color: '#e2e8f0',
+                      lineHeight: '1.6',
+                      maxHeight: '220px',
+                      overflowY: 'auto',
+                    }}
+                  >
+                    {finalCoverLetter}
+                  </pre>
+                </div>
+              </div>
+            )}
+
+            <NetworkTapLog />
+          </div>
+        )}
+
+        {/* Real-time Model Execution Trace & Prompt Inspector */}
+        <TraceDrawer />
       </main>
 
       {activeReceipt && (
@@ -209,6 +393,12 @@ export default function App() {
           onClose={() => setActiveReceipt(null)}
         />
       )}
+
+      <ConfigModal
+        isOpen={isConfigOpen}
+        onClose={() => setIsConfigOpen(false)}
+        onConfigUpdated={refreshStatus}
+      />
     </>
   );
 }
