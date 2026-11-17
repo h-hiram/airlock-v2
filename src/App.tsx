@@ -11,6 +11,7 @@ import {
   Search,
   CheckSquare,
   Award,
+  Hash,
 } from 'lucide-react';
 import { InferenceMode } from 'firebase/ai';
 import { RequestAuditorView } from './components/audit/RequestAuditorView';
@@ -20,6 +21,10 @@ import { NetworkTapLog } from './components/network/NetworkTapLog';
 import { DisclosureReceiptModal } from './components/receipt/DisclosureReceiptModal';
 import { TraceDrawer } from './components/common/TraceDrawer';
 import { ConfigModal } from './components/common/ConfigModal';
+import { HeroExplainerBanner } from './components/common/HeroExplainerBanner';
+import { HashVerificationModal } from './components/common/HashVerificationModal';
+import { RevocableShareCard } from './components/sharing/RevocableShareCard';
+import { PublicVerificationView } from './components/sharing/PublicVerificationView';
 import type {
   VerificationRequest,
   AuditReport,
@@ -32,11 +37,20 @@ import { SYNTHETIC_PAYSLIP_CLEAN, SAMPLE_VERIFICATION_REQUESTS } from './lib/doc
 import { runDeviceCalibration, type DeviceCalibrationResult } from './lib/ai/calibration';
 import { getFirebaseStatus, type FirebaseClientStatus } from './lib/ai/client';
 import { extractFieldOnDevice, composeVerifiedAnswerSheet } from './lib/ai/hybridModel';
-import { computeSha256 } from './lib/defense/crypto';
+import { computeSha256, computeSaltedSha256, generateSalt } from './lib/defense/crypto';
 import { telemetryStore } from './lib/network/telemetryStore';
 
 export default function App() {
   const [currentStep, setCurrentStep] = useState<1 | 2 | 3 | 4>(1);
+
+  // Verification Portal Routing (e.g., ?verify=disc_xyz)
+  const [activeVerifyId, setActiveVerifyId] = useState<string | null>(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      return params.get('verify');
+    }
+    return null;
+  });
 
   const [deviceCalib, setDeviceCalib] = useState<DeviceCalibrationResult | null>(null);
   const [firebaseStatus, setFirebaseStatus] = useState<FirebaseClientStatus | null>(null);
@@ -48,12 +62,22 @@ export default function App() {
 
   const [candidates, setCandidates] = useState<ExtractedCandidate[]>([]);
   const [approvedKeys, setApprovedKeys] = useState<Set<string>>(new Set());
+  const [approvedSnippets, setApprovedSnippets] = useState<ApprovedSnippet[]>([]);
 
   const [isExtracting, setIsExtracting] = useState(false);
   const [isComposing, setIsComposing] = useState(false);
 
   const [activeReceipt, setActiveReceipt] = useState<DisclosureReceipt | null>(null);
   const [finalCoverLetter, setFinalCoverLetter] = useState<string>('');
+
+  // Interactive Live Cryptographic Proof Modal state
+  const [verifyingSnippet, setVerifyingSnippet] = useState<{
+    fieldLabel: string;
+    value: string | number;
+    exactQuote: string;
+    fullHash: string;
+    salt?: string;
+  } | null>(null);
 
   const refreshStatus = () => {
     runDeviceCalibration().then(setDeviceCalib);
@@ -64,11 +88,22 @@ export default function App() {
     refreshStatus();
   }, []);
 
+  const handleSelectScenario = (req: VerificationRequest, doc: SyntheticDocument) => {
+    setCurrentRequest(req);
+    setSelectedDoc(doc);
+    setCurrentAudit(null);
+    setCandidates([]);
+    setApprovedKeys(new Set());
+    setApprovedSnippets([]);
+    setCurrentStep(1);
+  };
+
   const handleRequestPlanned = (req: VerificationRequest, audit: AuditReport) => {
     setCurrentRequest(req);
     setCurrentAudit(audit);
     setCandidates([]);
     setApprovedKeys(new Set());
+    setApprovedSnippets([]);
   };
 
   const handleStartExtraction = async (mode: 'prefer_on_device' | 'only_on_device' = 'prefer_on_device') => {
@@ -76,6 +111,7 @@ export default function App() {
     setIsExtracting(true);
     setCandidates([]);
     setApprovedKeys(new Set());
+    setApprovedSnippets([]);
 
     const inferenceMode =
       mode === 'only_on_device' ? InferenceMode.ONLY_ON_DEVICE : InferenceMode.PREFER_ON_DEVICE;
@@ -87,7 +123,7 @@ export default function App() {
       for (const job of currentAudit.recommendedMinimalFields) {
         const candidate = await extractFieldOnDevice(job, selectedDoc.rawText, 1, inferenceMode);
         extracted.push(candidate);
-        if (candidate.found && candidate.isGrounded) {
+        if (candidate.found && candidate.isGrounded && !candidate.isAdversarialAttack) {
           newApproved.add(candidate.fieldKey);
         }
       }
@@ -118,35 +154,42 @@ export default function App() {
 
     try {
       const approvedCandidates = candidates.filter((c) => approvedKeys.has(c.fieldKey));
-      const approvedSnippets: ApprovedSnippet[] = [];
+      const builtSnippets: ApprovedSnippet[] = [];
       let totalSnippetBytes = 0;
 
       for (const cand of approvedCandidates) {
         const textVal = cand.exactQuote || String(cand.value);
         totalSnippetBytes += new TextEncoder().encode(textVal).length;
-        const hash = await computeSha256(textVal);
-        approvedSnippets.push({
+
+        // Compute FULL 64-char SHA-256 hash with 128-bit salt
+        const { hash, salt } = await computeSaltedSha256(textVal);
+
+        builtSnippets.push({
           fieldKey: cand.fieldKey,
           fieldLabel: cand.fieldLabel,
           value: cand.value || '',
           exactQuote: cand.exactQuote || '',
           pageNumber: cand.pageNumber || 1,
-          sourceHash: hash.slice(0, 16),
+          sourceHash: hash, // FULL 64-character hash
+          salt,             // FULL 32-hex character salt
           approvedByUser: true,
         });
       }
 
+      setApprovedSnippets(builtSnippets);
       telemetryStore.setDisclosedSnippetBytes(totalSnippetBytes);
 
       const { coverLetter } = await composeVerifiedAnswerSheet(
         currentRequest,
-        approvedSnippets,
+        builtSnippets,
         currentAudit.politeCounterProposal
       );
 
-      const receipt = telemetryStore.generateReceipt(approvedSnippets.length, 3);
-      const receiptHash = await computeSha256(coverLetter);
-      receipt.sha256Attestation = receiptHash.slice(0, 24);
+      const receipt = telemetryStore.generateReceipt(builtSnippets.length, 3);
+      const masterSalt = generateSalt(16);
+      const receiptHash = await computeSha256(coverLetter, masterSalt);
+      receipt.salt = masterSalt;
+      receipt.sha256Attestation = receiptHash; // FULL 64-character hash
 
       setFinalCoverLetter(coverLetter);
       setActiveReceipt(receipt);
@@ -162,6 +205,23 @@ export default function App() {
     { num: 3, label: 'Approval & Defense', icon: CheckSquare },
     { num: 4, label: 'Receipt & Network Tap', icon: Award },
   ];
+
+  // If viewing public verification portal via URL parameter
+  if (activeVerifyId) {
+    return (
+      <div style={{ minHeight: '100vh', padding: '24px 16px', background: 'var(--bg-app)' }}>
+        <PublicVerificationView
+          disclosureId={activeVerifyId}
+          onBackToApp={() => {
+            setActiveVerifyId(null);
+            if (typeof window !== 'undefined') {
+              window.history.replaceState({}, '', window.location.pathname);
+            }
+          }}
+        />
+      </div>
+    );
+  }
 
   return (
     <>
@@ -293,6 +353,18 @@ export default function App() {
       <main style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
         {currentStep === 1 && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            {/* Visual Value Proposition & Interactive Demo Selector */}
+            <HeroExplainerBanner
+              onSelectScenario={handleSelectScenario}
+              activeScenarioId={
+                selectedDoc.id === 'doc_payslip_clean'
+                  ? 'clean_payslip'
+                  : selectedDoc.id === 'doc_payslip_hostile'
+                  ? 'hostile_payslip'
+                  : 'scam_bank'
+              }
+            />
+
             <RequestAuditorView onRequestPlanned={handleRequestPlanned} isLoading={isExtracting} />
             {currentAudit && (
               <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
@@ -330,6 +402,20 @@ export default function App() {
               onComposeVerifiedSheet={handleComposeVerifiedSheet}
               isComposing={isComposing}
               canCompose={approvedKeys.size > 0}
+              rawDocumentText={selectedDoc.rawText}
+              documentTitle={selectedDoc.title}
+              documentSizeBytes={selectedDoc.fileSizeBytes}
+              onVerifyProof={async (fieldLabel, value, exactQuote) => {
+                const textVal = exactQuote || String(value);
+                const { hash, salt } = await computeSaltedSha256(textVal);
+                setVerifyingSnippet({
+                  fieldLabel,
+                  value,
+                  exactQuote,
+                  fullHash: hash,
+                  salt,
+                });
+              }}
             />
           </div>
         )}
@@ -337,45 +423,83 @@ export default function App() {
         {currentStep === 4 && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
             {activeReceipt && (
-              <div className="airlock-card">
-                <div className="card-header">
-                  <div className="card-title-group">
-                    <Award size={20} color="var(--color-success)" />
-                    <div>
-                      <h3 className="card-title">Disclosure Completed & Attested</h3>
-                      <p className="card-subtitle">
-                        Certified answer sheet prepared from approved snippets alone.
-                      </p>
+              <>
+                <div className="airlock-card">
+                  <div className="card-header">
+                    <div className="card-title-group">
+                      <Award size={20} color="var(--color-success)" />
+                      <div>
+                        <h3 className="card-title">Disclosure Completed & Attested</h3>
+                        <p className="card-subtitle">
+                          Certified answer sheet prepared from approved snippets alone.
+                        </p>
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <button
+                        type="button"
+                        className="btn-secondary"
+                        onClick={() =>
+                          setVerifyingSnippet({
+                            fieldLabel: 'Master Cover Sheet Attestation',
+                            value: 'Synthesized Answer Sheet',
+                            exactQuote: finalCoverLetter,
+                            fullHash: activeReceipt.sha256Attestation,
+                            salt: activeReceipt.salt,
+                          })
+                        }
+                        style={{ fontSize: '12px', padding: '6px 12px' }}
+                      >
+                        <Hash size={13} /> Test Salted Hash
+                      </button>
+
+                      <button
+                        type="button"
+                        className="btn-primary"
+                        onClick={() => setActiveReceipt(activeReceipt)}
+                      >
+                        View Cryptographic Receipt
+                      </button>
                     </div>
                   </div>
-                  <button
-                    type="button"
-                    className="btn-primary"
-                    onClick={() => setActiveReceipt(activeReceipt)}
-                  >
-                    View Cryptographic Receipt
-                  </button>
+
+                  <div style={{ background: '#090d16', border: '1px solid #1e293b', borderRadius: '10px', padding: '16px' }}>
+                    <span style={{ fontSize: '12px', fontWeight: 600, color: '#38bdf8', display: 'block', marginBottom: '8px' }}>
+                      CERTIFIED ANSWER SHEET PREVIEW
+                    </span>
+                    <pre
+                      style={{
+                        fontFamily: 'var(--font-mono)',
+                        fontSize: '12px',
+                        whiteSpace: 'pre-wrap',
+                        color: '#e2e8f0',
+                        lineHeight: '1.6',
+                        maxHeight: '220px',
+                        overflowY: 'auto',
+                      }}
+                    >
+                      {finalCoverLetter}
+                    </pre>
+                  </div>
                 </div>
 
-                <div style={{ background: '#090d16', border: '1px solid #1e293b', borderRadius: '10px', padding: '16px' }}>
-                  <span style={{ fontSize: '12px', fontWeight: 600, color: '#38bdf8', display: 'block', marginBottom: '8px' }}>
-                    CERTIFIED ANSWER SHEET PREVIEW
-                  </span>
-                  <pre
-                    style={{
-                      fontFamily: 'var(--font-mono)',
-                      fontSize: '12px',
-                      whiteSpace: 'pre-wrap',
-                      color: '#e2e8f0',
-                      lineHeight: '1.6',
-                      maxHeight: '220px',
-                      overflowY: 'auto',
-                    }}
-                  >
-                    {finalCoverLetter}
-                  </pre>
-                </div>
-              </div>
+                {/* Revocable Share Card */}
+                <RevocableShareCard
+                  requesterName={currentRequest.requesterName || 'Third-Party Requester'}
+                  requestText={currentRequest.rawRequestText}
+                  counterProposal={currentAudit?.politeCounterProposal || ''}
+                  coverLetter={finalCoverLetter}
+                  approvedSnippets={approvedSnippets}
+                  sha256Receipt={activeReceipt.sha256Attestation}
+                  salt={activeReceipt.salt}
+                  onOpenPortal={(id) => {
+                    setActiveVerifyId(id);
+                    if (typeof window !== 'undefined') {
+                      window.history.pushState({}, '', `?verify=${id}`);
+                    }
+                  }}
+                />
+              </>
             )}
 
             <NetworkTapLog />
@@ -386,11 +510,24 @@ export default function App() {
         <TraceDrawer />
       </main>
 
+      {/* Cryptographic Receipt Modal */}
       {activeReceipt && (
         <DisclosureReceiptModal
           receipt={activeReceipt}
           coverLetter={finalCoverLetter}
           onClose={() => setActiveReceipt(null)}
+        />
+      )}
+
+      {/* Live Interactive Hash Verification Modal */}
+      {verifyingSnippet && (
+        <HashVerificationModal
+          fieldLabel={verifyingSnippet.fieldLabel}
+          value={verifyingSnippet.value}
+          exactQuote={verifyingSnippet.exactQuote}
+          fullHash={verifyingSnippet.fullHash}
+          salt={verifyingSnippet.salt}
+          onClose={() => setVerifyingSnippet(null)}
         />
       )}
 

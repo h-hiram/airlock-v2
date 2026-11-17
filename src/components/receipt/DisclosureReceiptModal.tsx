@@ -161,8 +161,22 @@ export const DisclosureReceiptModal: React.FC<Props> = ({ receipt, coverLetter, 
           </pre>
         </div>
 
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px', color: '#64748b' }}>
-          <span>Tamper-evident attestation hash: <code style={{ fontSize: '11px' }}>{receipt.sha256Attestation || 'sha256_e83b4290f1a...'}</code></span>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px', color: '#64748b', flexWrap: 'wrap', gap: '10px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+            <span>
+              Tamper-evident salted hash:{' '}
+              <code style={{ fontSize: '11px', color: '#38bdf8' }}>{receipt.sha256Attestation || 'sha256_e83b4290f1a...'}</code>
+              {receipt.salt && (
+                <span style={{ fontSize: '11px', color: '#94a3b8', marginLeft: '6px' }}>
+                  (Salt: <code style={{ color: '#a7f3d0' }}>{receipt.salt.slice(0, 12)}...</code>)
+                </span>
+              )}
+            </span>
+            <span style={{ fontSize: '10px', color: '#10b981' }}>
+              🛡️ Cryptographically salted to guarantee zero dictionary or rainbow-table reversibility.
+            </span>
+          </div>
+
           <button type="button" className="btn-primary" onClick={onClose}>
             Done
           </button>

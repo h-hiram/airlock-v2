@@ -36,6 +36,7 @@ export interface ExtractedCandidate {
   sourceType: InferenceSourceType;
   confidenceScore: number;
   isGrounded: boolean;
+  isAdversarialAttack?: boolean;
   quarantineReason?: string;
 }
 
@@ -46,6 +47,7 @@ export interface ApprovedSnippet {
   exactQuote: string;
   pageNumber: number;
   sourceHash: string;
+  salt?: string;
   approvedByUser: boolean;
 }
 
@@ -70,6 +72,7 @@ export interface DisclosureReceipt {
   unrequestedPagesSuppressedCount: number;
   telemetryLogs: NetworkTelemetryEntry[];
   sha256Attestation: string;
+  salt?: string;
 }
 
 export interface ExecutionTrace {
@@ -82,6 +85,23 @@ export interface ExecutionTrace {
   rawResponseText: string;
   latencyMs: number;
   networkBytesTransmitted: number;
+}
+
+export interface RevocableDisclosure {
+  id: string;
+  ownerUid: string;
+  requesterName: string;
+  requestText: string;
+  counterProposal: string;
+  coverLetter: string;
+  approvedSnippets: ApprovedSnippet[];
+  createdAt: number;
+  expiresAt: number;
+  revoked: boolean;
+  revokedAt?: number;
+  viewCount: number;
+  sha256Receipt: string;
+  salt?: string;
 }
 
 export interface SyntheticDocument {

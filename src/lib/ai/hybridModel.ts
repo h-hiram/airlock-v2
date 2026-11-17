@@ -210,6 +210,7 @@ No extra commentary.`;
 
     const grounding = evaluateGrounding(candidate, documentChunk);
     candidate.isGrounded = grounding.isGrounded;
+    candidate.isAdversarialAttack = grounding.isAdversarialAttack;
     candidate.quarantineReason = grounding.quarantineReason;
     console.log(
       `[AIRLOCK:GROUNDING-GATE] "${job.fieldLabel}" Grounding Status:`,
@@ -290,6 +291,7 @@ function deterministicLocalExtraction(
 
   const grounding = evaluateGrounding(candidate, documentChunk);
   candidate.isGrounded = grounding.isGrounded;
+  candidate.isAdversarialAttack = grounding.isAdversarialAttack;
   candidate.quarantineReason = grounding.quarantineReason;
 
   traceStore.addTrace({
@@ -375,6 +377,7 @@ ${documentChunk}
 
       const grounding = evaluateGrounding(candidate, documentChunk);
       candidate.isGrounded = grounding.isGrounded;
+      candidate.isAdversarialAttack = grounding.isAdversarialAttack;
       candidate.quarantineReason = grounding.quarantineReason;
 
       traceStore.addTrace({
