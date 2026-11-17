@@ -1,0 +1,28 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /disclosures/{disclosureId} {
+      // Anyone can inspect the disclosure verification record
+      allow read: if true;
+
+      // Authenticated users (including anonymous auth) can create disclosure attestations
+      allow create: if request.auth != null
+        && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.createdAt is number
+        && request.resource.data.expiresAt is number
+        && request.resource.data.revoked == false;
+
+      // Only the owning user can revoke their disclosure, or public viewers can increment viewCount
+      allow update: if request.auth != null && (
+        // Case 1: Owner revoking or updating
+        request.auth.uid == resource.data.ownerUid
+        // Case 2: Atomic view count increment
+        || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['viewCount']))
+      );
+
+      // Only owner can delete
+      allow delete: if request.auth != null && request.auth.uid == resource.data.ownerUid;
+    }
+  }
+}
+
