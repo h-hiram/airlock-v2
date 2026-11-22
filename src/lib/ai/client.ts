@@ -30,8 +30,6 @@ let cachedApp: FirebaseApp | null = null;
 let cachedAI: AI | null = null;
 let cachedAppCheck: AppCheck | null = null;
 
-const STABLE_DEBUG_TOKEN = '8b4f4897-6056-485f-be7d-696a6eed1855';
-
 function resolveConfig(): { config: CustomFirebaseConfig | null; source: 'env' | 'localStorage' | 'none' } {
   if (typeof window !== 'undefined') {
     const stored = localStorage.getItem('airlock_firebase_config');
@@ -61,7 +59,7 @@ function resolveConfig(): { config: CustomFirebaseConfig | null; source: 'env' |
         messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || '',
         appId: envApp,
         recaptchaSiteKey: import.meta.env.VITE_FIREBASE_RECAPTCHA_SITE_KEY,
-        debugToken: import.meta.env.VITE_APPCHECK_DEBUG_TOKEN || STABLE_DEBUG_TOKEN,
+        debugToken: import.meta.env.VITE_APPCHECK_DEBUG_TOKEN,
       },
       source: 'env',
     };
@@ -108,18 +106,14 @@ export function initFirebase(): { app: FirebaseApp | null; ai: AI | null } {
     cachedApp = app;
 
     if (typeof window !== 'undefined') {
-      const activeDebugToken =
-        config.debugToken && config.debugToken !== 'true'
-          ? config.debugToken
-          : STABLE_DEBUG_TOKEN;
+      const activeDebugToken = config.debugToken || true;
 
       console.log(
-        '%c[AIRLOCK:FIREBASE] Initializing App Check with debug token:%c ' + activeDebugToken,
-        'background: #1e293b; color: #38bdf8; font-weight: bold; padding: 2px 6px; border-radius: 4px;',
-        'color: #f1f5f9; font-weight: bold;'
+        '%c[AIRLOCK:FIREBASE] Initializing App Check with debug provider',
+        'background: #1e293b; color: #38bdf8; font-weight: bold; padding: 2px 6px; border-radius: 4px;'
       );
 
-      (window as unknown as { FIREBASE_APPCHECK_DEBUG_TOKEN: string }).FIREBASE_APPCHECK_DEBUG_TOKEN = activeDebugToken;
+      (window as unknown as { FIREBASE_APPCHECK_DEBUG_TOKEN: string | boolean }).FIREBASE_APPCHECK_DEBUG_TOKEN = activeDebugToken;
 
       try {
         if (config.recaptchaSiteKey) {
