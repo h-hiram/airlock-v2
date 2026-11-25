@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Settings, X, Save, RefreshCw, Key, CheckCircle, Info } from 'lucide-react';
+import { Settings, X, Save, CheckCircle, Info } from 'lucide-react';
 import { saveCustomFirebaseConfig, getFirebaseStatus } from '../../lib/ai/client';
 
 interface Props {

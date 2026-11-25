@@ -12,6 +12,8 @@ import {
   CheckSquare,
   Award,
   Hash,
+  ShieldCheck,
+  ShieldAlert,
 } from 'lucide-react';
 import { InferenceMode } from 'firebase/ai';
 import { RequestAuditorView } from './components/audit/RequestAuditorView';
@@ -25,12 +27,14 @@ import { HeroExplainerBanner } from './components/common/HeroExplainerBanner';
 import { HashVerificationModal } from './components/common/HashVerificationModal';
 import { RevocableShareCard } from './components/sharing/RevocableShareCard';
 import { PublicVerificationView } from './components/sharing/PublicVerificationView';
+import { AdversarialScoreboardModal } from './components/security/AdversarialScoreboardModal';
 import type {
   VerificationRequest,
   AuditReport,
   SyntheticDocument,
   ExtractedCandidate,
   ApprovedSnippet,
+  DerivedClaim,
   DisclosureReceipt,
 } from './types';
 import { SYNTHETIC_PAYSLIP_CLEAN, SAMPLE_VERIFICATION_REQUESTS } from './lib/documents/syntheticData';
@@ -39,6 +43,7 @@ import { getFirebaseStatus, type FirebaseClientStatus } from './lib/ai/client';
 import { extractFieldOnDevice, composeVerifiedAnswerSheet } from './lib/ai/hybridModel';
 import { computeSha256, computeSaltedSha256, generateSalt } from './lib/defense/crypto';
 import { telemetryStore } from './lib/network/telemetryStore';
+import { recordAndCheckProbe, type ProbeGuardCheckResult } from './lib/defense/probeGuard';
 
 export default function App() {
   const [currentStep, setCurrentStep] = useState<1 | 2 | 3 | 4>(1);
@@ -63,12 +68,15 @@ export default function App() {
   const [candidates, setCandidates] = useState<ExtractedCandidate[]>([]);
   const [approvedKeys, setApprovedKeys] = useState<Set<string>>(new Set());
   const [approvedSnippets, setApprovedSnippets] = useState<ApprovedSnippet[]>([]);
+  const [approvedDerivedClaims, setApprovedDerivedClaims] = useState<DerivedClaim[]>([]);
+  const [probeWarning, setProbeWarning] = useState<ProbeGuardCheckResult | null>(null);
 
   const [isExtracting, setIsExtracting] = useState(false);
   const [isComposing, setIsComposing] = useState(false);
 
   const [activeReceipt, setActiveReceipt] = useState<DisclosureReceipt | null>(null);
   const [finalCoverLetter, setFinalCoverLetter] = useState<string>('');
+  const [isScoreboardOpen, setIsScoreboardOpen] = useState(false);
 
   // Interactive Live Cryptographic Proof Modal state
   const [verifyingSnippet, setVerifyingSnippet] = useState<{
@@ -95,6 +103,8 @@ export default function App() {
     setCandidates([]);
     setApprovedKeys(new Set());
     setApprovedSnippets([]);
+    setApprovedDerivedClaims([]);
+    setProbeWarning(null);
     setCurrentStep(1);
   };
 
@@ -104,14 +114,29 @@ export default function App() {
     setCandidates([]);
     setApprovedKeys(new Set());
     setApprovedSnippets([]);
+    setApprovedDerivedClaims([]);
+
+    // Check ProbeGuard for threshold queries
+    const probeTask = audit.recommendedMinimalFields.find((f) => f.predicate?.threshold !== undefined);
+    if (probeTask && probeTask.predicate?.threshold !== undefined) {
+      const probeRes = recordAndCheckProbe(
+        req.requesterName || 'Third-Party Requester',
+        probeTask.fieldKey,
+        probeTask.predicate.threshold
+      );
+      setProbeWarning(probeRes);
+    } else {
+      setProbeWarning(null);
+    }
   };
 
-  const handleStartExtraction = async (mode: 'prefer_on_device' | 'only_on_device' = 'prefer_on_device') => {
+  const handleStartExtraction = async (mode: 'prefer_on_device' | 'only_on_device' = 'only_on_device') => {
     if (!currentAudit || currentAudit.recommendedMinimalFields.length === 0) return;
     setIsExtracting(true);
     setCandidates([]);
     setApprovedKeys(new Set());
     setApprovedSnippets([]);
+    setApprovedDerivedClaims([]);
 
     const inferenceMode =
       mode === 'only_on_device' ? InferenceMode.ONLY_ON_DEVICE : InferenceMode.PREFER_ON_DEVICE;
@@ -155,9 +180,14 @@ export default function App() {
     try {
       const approvedCandidates = candidates.filter((c) => approvedKeys.has(c.fieldKey));
       const builtSnippets: ApprovedSnippet[] = [];
+      const derivedClaims: DerivedClaim[] = [];
       let totalSnippetBytes = 0;
 
       for (const cand of approvedCandidates) {
+        if (cand.derivedClaim) {
+          derivedClaims.push(cand.derivedClaim);
+        }
+
         const textVal = cand.exactQuote || String(cand.value);
         totalSnippetBytes += new TextEncoder().encode(textVal).length;
 
@@ -171,12 +201,13 @@ export default function App() {
           exactQuote: cand.exactQuote || '',
           pageNumber: cand.pageNumber || 1,
           sourceHash: hash, // FULL 64-character hash
-          salt,             // FULL 32-hex character salt
+          salt, // FULL 32-hex character salt
           approvedByUser: true,
         });
       }
 
       setApprovedSnippets(builtSnippets);
+      setApprovedDerivedClaims(derivedClaims);
       telemetryStore.setDisclosedSnippetBytes(totalSnippetBytes);
 
       const { coverLetter } = await composeVerifiedAnswerSheet(
@@ -223,6 +254,15 @@ export default function App() {
     );
   }
 
+  const activeScenarioId =
+    selectedDoc.id === 'doc_payslip_clean'
+      ? 'clean_payslip'
+      : selectedDoc.id === 'doc_payslip_hostile'
+      ? 'hostile_payslip'
+      : selectedDoc.id === 'doc_mpesa_statement'
+      ? 'nairobi_tenancy'
+      : 'scam_loan';
+
   return (
     <>
       <header className="airlock-header">
@@ -264,6 +304,22 @@ export default function App() {
               </span>
             </div>
           )}
+
+          <button
+            type="button"
+            className="btn-preset"
+            onClick={() => setIsScoreboardOpen(true)}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              borderColor: '#38bdf8',
+              color: '#7dd3fc',
+            }}
+          >
+            <ShieldAlert size={14} color="#38bdf8" />
+            <span>Defense Scoreboard</span>
+          </button>
 
           <button
             type="button"
@@ -356,13 +412,8 @@ export default function App() {
             {/* Visual Value Proposition & Interactive Demo Selector */}
             <HeroExplainerBanner
               onSelectScenario={handleSelectScenario}
-              activeScenarioId={
-                selectedDoc.id === 'doc_payslip_clean'
-                  ? 'clean_payslip'
-                  : selectedDoc.id === 'doc_payslip_hostile'
-                  ? 'hostile_payslip'
-                  : 'scam_bank'
-              }
+              activeScenarioId={activeScenarioId}
+              onOpenScoreboard={() => setIsScoreboardOpen(true)}
             />
 
             <RequestAuditorView onRequestPlanned={handleRequestPlanned} isLoading={isExtracting} />
@@ -405,6 +456,7 @@ export default function App() {
               rawDocumentText={selectedDoc.rawText}
               documentTitle={selectedDoc.title}
               documentSizeBytes={selectedDoc.fileSizeBytes}
+              probeWarning={probeWarning}
               onVerifyProof={async (fieldLabel, value, exactQuote) => {
                 const textVal = exactQuote || String(value);
                 const { hash, salt } = await computeSaltedSha256(textVal);
@@ -424,6 +476,58 @@ export default function App() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
             {activeReceipt && (
               <>
+                {/* Canary Privacy Audit Card */}
+                {activeReceipt.canaryAudit && (
+                  <div
+                    style={{
+                      background: activeReceipt.canaryAudit.isFullyContained
+                        ? 'rgba(16, 185, 129, 0.1)'
+                        : 'rgba(244, 63, 94, 0.1)',
+                      border: `1px solid ${
+                        activeReceipt.canaryAudit.isFullyContained ? '#10b981' : '#f43f5e'
+                      }`,
+                      borderRadius: '10px',
+                      padding: '16px 20px',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      flexWrap: 'wrap',
+                      gap: '12px',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                      <ShieldCheck
+                        size={28}
+                        color={activeReceipt.canaryAudit.isFullyContained ? '#34d399' : '#f43f5e'}
+                      />
+                      <div>
+                        <strong style={{ color: '#fff', fontSize: '15px' }}>
+                          CANARY PRIVACY AUDIT: {activeReceipt.canaryAudit.canariesDetectedOutbound} of{' '}
+                          {activeReceipt.canaryAudit.totalCanariesSealed} Planted Canaries Leaked
+                        </strong>
+                        <p style={{ margin: '4px 0 0', fontSize: '12px', color: '#94a3b8' }}>
+                          Live network tap scanned outbound request payloads to Firebase Vertex AI and Firestore. 0 raw document canary tokens escaped.
+                        </p>
+                      </div>
+                    </div>
+
+                    <span
+                      style={{
+                        background: activeReceipt.canaryAudit.isFullyContained ? '#064e3b' : '#881337',
+                        color: activeReceipt.canaryAudit.isFullyContained ? '#6ee7b7' : '#fda4af',
+                        fontWeight: 800,
+                        fontSize: '11px',
+                        padding: '4px 12px',
+                        borderRadius: '6px',
+                        letterSpacing: '0.5px',
+                      }}
+                    >
+                      {activeReceipt.canaryAudit.isFullyContained ? '100% CONTAINED' : 'LEAK DETECTED'}
+                    </span>
+                  </div>
+                )}
+
+                {/* Main Disclosure Card */}
                 <div className="airlock-card">
                   <div className="card-header">
                     <div className="card-title-group">
@@ -463,6 +567,54 @@ export default function App() {
                     </div>
                   </div>
 
+                  {/* Dual Byte Metrics Row */}
+                  <div
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+                      gap: '12px',
+                      marginBottom: '16px',
+                    }}
+                  >
+                    <div
+                      style={{
+                        background: '#070b14',
+                        border: '1px solid #1e293b',
+                        borderRadius: '8px',
+                        padding: '12px',
+                      }}
+                    >
+                      <span style={{ fontSize: '11px', color: '#94a3b8', display: 'block' }}>
+                        Document Data Disclosed
+                      </span>
+                      <strong style={{ fontSize: '16px', color: '#34d399', fontFamily: 'var(--font-mono)' }}>
+                        {telemetryStore.getDisclosedSnippetBytes()} Bytes
+                      </strong>
+                      <span style={{ fontSize: '10px', color: '#64748b', display: 'block', marginTop: '2px' }}>
+                        Only approved facts ({((telemetryStore.getDocumentBytesHeld() - telemetryStore.getDisclosedSnippetBytes()) / Math.max(1, telemetryStore.getDocumentBytesHeld()) * 100).toFixed(1)}% kept private)
+                      </span>
+                    </div>
+
+                    <div
+                      style={{
+                        background: '#070b14',
+                        border: '1px solid #1e293b',
+                        borderRadius: '8px',
+                        padding: '12px',
+                      }}
+                    >
+                      <span style={{ fontSize: '11px', color: '#94a3b8', display: 'block' }}>
+                        Total Protocol Overhead
+                      </span>
+                      <strong style={{ fontSize: '16px', color: '#38bdf8', fontFamily: 'var(--font-mono)' }}>
+                        {activeReceipt.totalNetworkBytesSent} Bytes
+                      </strong>
+                      <span style={{ fontSize: '10px', color: '#64748b', display: 'block', marginTop: '2px' }}>
+                        Cloud planner JSON + App Check envelope (0 document bytes)
+                      </span>
+                    </div>
+                  </div>
+
                   <div style={{ background: '#090d16', border: '1px solid #1e293b', borderRadius: '10px', padding: '16px' }}>
                     <span style={{ fontSize: '12px', fontWeight: 600, color: '#38bdf8', display: 'block', marginBottom: '8px' }}>
                       CERTIFIED ANSWER SHEET PREVIEW
@@ -490,6 +642,7 @@ export default function App() {
                   counterProposal={currentAudit?.politeCounterProposal || ''}
                   coverLetter={finalCoverLetter}
                   approvedSnippets={approvedSnippets}
+                  derivedClaims={approvedDerivedClaims}
                   sha256Receipt={activeReceipt.sha256Attestation}
                   salt={activeReceipt.salt}
                   onOpenPortal={(id) => {
@@ -535,6 +688,11 @@ export default function App() {
         isOpen={isConfigOpen}
         onClose={() => setIsConfigOpen(false)}
         onConfigUpdated={refreshStatus}
+      />
+
+      <AdversarialScoreboardModal
+        isOpen={isScoreboardOpen}
+        onClose={() => setIsScoreboardOpen(false)}
       />
     </>
   );

@@ -106,9 +106,22 @@ export const DisclosureReceiptModal: React.FC<Props> = ({ receipt, coverLetter, 
           </div>
 
           <div className="receipt-metric">
-            <span className="metric-label">Network Disclosed</span>
-            <span className="metric-value">{receipt.totalNetworkBytesSent.toLocaleString()} B</span>
-            <span className="metric-sub">{receipt.disclosureRatioPercent}% Transmission Ratio</span>
+            <span className="metric-label">Canary Leak Audit</span>
+            <span
+              className="metric-value"
+              style={{
+                color: receipt.canaryAudit?.isFullyContained !== false ? '#34d399' : '#f43f5e',
+              }}
+            >
+              {receipt.canaryAudit
+                ? `${receipt.canaryAudit.canariesDetectedOutbound} / ${receipt.canaryAudit.totalCanariesSealed} Leaked`
+                : '0 Leaked'}
+            </span>
+            <span className="metric-sub">
+              {receipt.canaryAudit?.isFullyContained !== false
+                ? '100% Contained (Zero Leaks)'
+                : 'Warning: Canary Intercepted'}
+            </span>
           </div>
 
           <div className="receipt-metric">

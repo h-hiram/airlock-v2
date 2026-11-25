@@ -1,4 +1,4 @@
-import type { NetworkTelemetryEntry, DisclosureReceipt } from '../../types';
+import type { NetworkTelemetryEntry, DisclosureReceipt, CanaryTestResult } from '../../types';
 
 type Listener = () => void;
 
@@ -7,6 +7,8 @@ class TelemetryStore {
   private listeners: Set<Listener> = new Set();
   private totalDocumentBytesHeld = 0;
   private totalDisclosedSnippetBytes = 0;
+  private activeCanaries: Set<string> = new Set();
+  private leakedCanaries: Map<string, string[]> = new Map(); // canary -> [urls]
 
   public subscribe(listener: Listener): () => void {
     this.listeners.add(listener);
@@ -27,6 +29,60 @@ class TelemetryStore {
     };
     this.entries.push(fullEntry);
     this.notify();
+  }
+
+  public logRequest(
+    tier: 'cloud_ai' | 'firestore' | 'app_check' | 'other',
+    method: string,
+    url: string,
+    requestBytes: number,
+    responseBytes: number = 0
+  ): void {
+    this.recordEntry({
+      url,
+      method,
+      requestBytes,
+      responseBytes,
+      tier,
+    });
+  }
+
+  public setActiveCanaries(tokens: string[]): void {
+    this.activeCanaries = new Set(tokens.filter(Boolean));
+    this.leakedCanaries.clear();
+    this.notify();
+  }
+
+  public getActiveCanaries(): string[] {
+    return Array.from(this.activeCanaries);
+  }
+
+  public recordCanaryLeak(token: string, url: string): void {
+    if (!this.leakedCanaries.has(token)) {
+      this.leakedCanaries.set(token, []);
+    }
+    const list = this.leakedCanaries.get(token)!;
+    if (!list.includes(url)) {
+      list.push(url);
+    }
+    this.notify();
+  }
+
+  public getCanaryAudit(): CanaryTestResult {
+    const totalCanariesSealed = this.activeCanaries.size;
+    const canariesDetectedOutbound = this.leakedCanaries.size;
+    const leakedCanaryDetails: string[] = [];
+
+    this.leakedCanaries.forEach((urls, token) => {
+      leakedCanaryDetails.push(`${token} leaked in payload to ${urls.join(', ')}`);
+    });
+
+    return {
+      totalCanariesSealed,
+      canariesDetectedOutbound,
+      leakedCanaryDetails,
+      isFullyContained: canariesDetectedOutbound === 0,
+    };
   }
 
   public setDocumentBytesHeld(bytes: number): void {
@@ -59,6 +115,7 @@ class TelemetryStore {
     this.entries = [];
     this.totalDocumentBytesHeld = 0;
     this.totalDisclosedSnippetBytes = 0;
+    this.leakedCanaries.clear();
     this.notify();
   }
 
@@ -80,6 +137,7 @@ class TelemetryStore {
       unrequestedPagesSuppressedCount: pagesSuppressed,
       telemetryLogs: [...this.entries],
       sha256Attestation: '',
+      canaryAudit: this.getCanaryAudit(),
     };
   }
 }

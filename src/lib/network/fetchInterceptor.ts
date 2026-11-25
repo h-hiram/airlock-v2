@@ -22,6 +22,27 @@ function calculatePayloadSize(body: BodyInit | null | undefined): number {
   return 0;
 }
 
+function extractBodyAsText(body: BodyInit | null | undefined): string | null {
+  if (!body) return null;
+  if (typeof body === 'string') return body;
+  if (body instanceof URLSearchParams) return body.toString();
+  if (body instanceof ArrayBuffer) {
+    try {
+      return new TextDecoder().decode(body);
+    } catch {
+      return null;
+    }
+  }
+  if (ArrayBuffer.isView(body)) {
+    try {
+      return new TextDecoder().decode(body);
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
 function resolveTier(url: string): 'cloud_ai' | 'firestore' | 'app_check' | 'other' {
   if (url.includes('firebasevertexai.googleapis.com') || url.includes('generativelanguage.googleapis.com')) {
     return 'cloud_ai';
@@ -47,6 +68,21 @@ export function installNetworkTap(): void {
     const method = init?.method || (typeof input === 'object' && 'method' in input ? input.method : 'GET');
     const requestBytes = calculatePayloadSize(init?.body);
     const tier = resolveTier(url);
+
+    // Live Canary Leak Audit Scanner
+    const bodyText = extractBodyAsText(init?.body);
+    const activeCanaries = telemetryStore.getActiveCanaries();
+    if (activeCanaries.length > 0) {
+      for (const canary of activeCanaries) {
+        if (canary && (bodyText?.includes(canary) || url.includes(canary))) {
+          console.error(
+            `%c🚨 [AIRLOCK:CANARY-LEAK-DETECTED] Active canary "${canary}" intercepted in outbound ${method} request to ${url}!`,
+            'background: #881337; color: #fecdd3; font-weight: bold; padding: 4px;'
+          );
+          telemetryStore.recordCanaryLeak(canary, url);
+        }
+      }
+    }
 
     try {
       const response = await originalFetch.apply(this, [input, init]);
@@ -91,4 +127,3 @@ export function installNetworkTap(): void {
 
   isInterceptorInstalled = true;
 }
-

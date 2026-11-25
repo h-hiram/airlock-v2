@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { ShieldCheck, X, Copy, Check, Hash, Cpu, Key, AlertCircle } from 'lucide-react';
+import { ShieldCheck, X, Copy, Check } from 'lucide-react';
 import { computeSha256, formatSaltedHash } from '../../lib/defense/crypto';
 
 interface Props {
@@ -123,8 +123,12 @@ export const HashVerificationModal: React.FC<Props> = ({
         {/* Verification Status Banner */}
         <div
           style={{
-            background: matches ? 'rgba(16, 185, 129, 0.15)' : 'rgba(244, 63, 94, 0.15)',
-            border: `1px solid ${matches ? '#10b981' : '#f43f5e'}`,
+            background: isVerifying
+              ? 'rgba(56, 189, 248, 0.15)'
+              : matches
+                ? 'rgba(16, 185, 129, 0.15)'
+                : 'rgba(244, 63, 94, 0.15)',
+            border: `1px solid ${isVerifying ? '#38bdf8' : matches ? '#10b981' : '#f43f5e'}`,
             borderRadius: '10px',
             padding: '14px 16px',
             display: 'flex',
@@ -136,15 +140,26 @@ export const HashVerificationModal: React.FC<Props> = ({
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <ShieldCheck size={20} color={matches ? '#34d399' : '#f43f5e'} />
+            <ShieldCheck size={20} color={isVerifying ? '#38bdf8' : matches ? '#34d399' : '#f43f5e'} />
             <div>
               <strong style={{ color: '#fff', fontSize: '13px' }}>
-                {matches ? 'MATHEMATICAL PROOF VERIFIED' : 'HASH MISMATCH'}
+                {isVerifying
+                  ? 'COMPUTING LOCAL SHA-256...'
+                  : matches
+                    ? 'MATHEMATICAL PROOF VERIFIED'
+                    : 'HASH MISMATCH'}
               </strong>
-              <div style={{ fontSize: '11px', color: matches ? '#a7f3d0' : '#fecdd3' }}>
-                {matches
-                  ? 'SHA-256 hash recalculated from source text and salt matches attestation exactly.'
-                  : 'Computed hash differs from expected attestation.'}
+              <div
+                style={{
+                  fontSize: '11px',
+                  color: isVerifying ? '#bae6fd' : matches ? '#a7f3d0' : '#fecdd3',
+                }}
+              >
+                {isVerifying
+                  ? 'Running Web Crypto API in browser sandbox without network...'
+                  : matches
+                    ? 'SHA-256 hash recalculated from source text and salt matches attestation exactly.'
+                    : 'Computed hash differs from expected attestation.'}
               </div>
             </div>
           </div>
@@ -154,13 +169,13 @@ export const HashVerificationModal: React.FC<Props> = ({
               fontSize: '11px',
               fontWeight: 700,
               fontFamily: 'var(--font-mono)',
-              background: matches ? '#064e3b' : '#881337',
-              color: matches ? '#6ee7b7' : '#fda4af',
+              background: isVerifying ? '#0369a1' : matches ? '#064e3b' : '#881337',
+              color: isVerifying ? '#e0f2fe' : matches ? '#6ee7b7' : '#fda4af',
               padding: '3px 8px',
               borderRadius: '6px',
             }}
           >
-            STATUS: 200 VALID
+            {isVerifying ? 'COMPUTING' : matches ? 'STATUS: 200 VALID' : 'INVALID'}
           </span>
         </div>
 

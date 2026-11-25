@@ -1,9 +1,10 @@
 import React from 'react';
-import { Shield, Sparkles } from 'lucide-react';
+import { Shield, ShieldAlert } from 'lucide-react';
 import type { SyntheticDocument, VerificationRequest } from '../../types';
 import {
   SYNTHETIC_PAYSLIP_CLEAN,
   SYNTHETIC_PAYSLIP_HOSTILE,
+  SYNTHETIC_MPESA_STATEMENT,
   SYNTHETIC_BANK_STATEMENT,
   SAMPLE_VERIFICATION_REQUESTS,
 } from '../../lib/documents/syntheticData';
@@ -11,9 +12,10 @@ import {
 interface Props {
   onSelectScenario: (req: VerificationRequest, doc: SyntheticDocument) => void;
   activeScenarioId?: string;
+  onOpenScoreboard?: () => void;
 }
 
-export const HeroExplainerBanner: React.FC<Props> = ({ onSelectScenario, activeScenarioId }) => {
+export const HeroExplainerBanner: React.FC<Props> = ({ onSelectScenario, activeScenarioId, onOpenScoreboard }) => {
   return (
     <div
       style={{
@@ -53,7 +55,7 @@ export const HeroExplainerBanner: React.FC<Props> = ({ onSelectScenario, activeS
           className={`btn-preset ${activeScenarioId === 'clean_payslip' ? 'active' : ''}`}
           style={{ fontSize: '12px', padding: '5px 12px' }}
         >
-          🏢 1. Clean Tenancy Application
+          🏢 1. Global Tenancy (Clean)
         </button>
 
         <button
@@ -72,17 +74,51 @@ export const HeroExplainerBanner: React.FC<Props> = ({ onSelectScenario, activeS
 
         <button
           type="button"
-          onClick={() => onSelectScenario(SAMPLE_VERIFICATION_REQUESTS[1], SYNTHETIC_BANK_STATEMENT)}
-          className={`btn-preset ${activeScenarioId === 'scam_bank' ? 'active' : ''}`}
+          onClick={() => onSelectScenario(SAMPLE_VERIFICATION_REQUESTS[1], SYNTHETIC_MPESA_STATEMENT)}
+          className={`btn-preset ${activeScenarioId === 'nairobi_tenancy' ? 'active' : ''}`}
           style={{
             fontSize: '12px',
             padding: '5px 12px',
-            borderColor: activeScenarioId === 'scam_bank' ? '#f59e0b' : undefined,
-            color: activeScenarioId === 'scam_bank' ? '#fde68a' : undefined,
+            borderColor: activeScenarioId === 'nairobi_tenancy' ? '#10b981' : undefined,
+            color: activeScenarioId === 'nairobi_tenancy' ? '#6ee7b7' : undefined,
           }}
         >
-          ⚠️ 3. Scam & Phishing Over-Asking
+          🇰🇪 3. Nairobi Tenancy (M-Pesa)
         </button>
+
+        <button
+          type="button"
+          onClick={() => onSelectScenario(SAMPLE_VERIFICATION_REQUESTS[2], SYNTHETIC_BANK_STATEMENT)}
+          className={`btn-preset ${activeScenarioId === 'scam_loan' ? 'active' : ''}`}
+          style={{
+            fontSize: '12px',
+            padding: '5px 12px',
+            borderColor: activeScenarioId === 'scam_loan' ? '#f59e0b' : undefined,
+            color: activeScenarioId === 'scam_loan' ? '#fde68a' : undefined,
+          }}
+        >
+          🛡️ 4. Phishing Loan App (KDPA §3)
+        </button>
+
+        {onOpenScoreboard && (
+          <button
+            type="button"
+            onClick={onOpenScoreboard}
+            className="btn-preset"
+            style={{
+              fontSize: '12px',
+              padding: '5px 12px',
+              borderColor: '#38bdf8',
+              color: '#38bdf8',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '4px',
+            }}
+          >
+            <ShieldAlert size={12} />
+            <span>Run Security Battery</span>
+          </button>
+        )}
       </div>
     </div>
   );

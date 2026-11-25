@@ -15,7 +15,7 @@ import {
   type User,
 } from 'firebase/auth';
 import { initFirebase } from '../ai/client';
-import type { RevocableDisclosure, ApprovedSnippet } from '../../types';
+import type { RevocableDisclosure, ApprovedSnippet, DerivedClaim } from '../../types';
 import { telemetryStore } from '../network/telemetryStore';
 
 let cachedDb: Firestore | null = null;
@@ -96,6 +96,7 @@ export interface CreateDisclosureInput {
   counterProposal: string;
   coverLetter: string;
   approvedSnippets: ApprovedSnippet[];
+  derivedClaims?: DerivedClaim[];
   sha256Receipt: string;
   salt?: string;
   expiresInDays?: number;
@@ -121,6 +122,7 @@ export async function publishRevocableDisclosure(
     counterProposal: input.counterProposal,
     coverLetter: input.coverLetter,
     approvedSnippets: input.approvedSnippets,
+    derivedClaims: input.derivedClaims || [],
     createdAt: now,
     expiresAt,
     revoked: false,
@@ -210,21 +212,31 @@ export async function revokeDisclosure(disclosureId: string): Promise<boolean> {
   const { db } = initAuthAndDb();
   const now = Date.now();
 
-  // Update local store
+  // Update local store with privacy tombstone
   const localStore = getLocalDisclosures();
   if (localStore[disclosureId]) {
     localStore[disclosureId].revoked = true;
     localStore[disclosureId].revokedAt = now;
+    localStore[disclosureId].tombstone = true;
+    localStore[disclosureId].coverLetter = '[REVOKED - SENSITIVE PAYLOAD ZEROED BY ISSUER]';
+    localStore[disclosureId].counterProposal = '[REVOKED]';
+    localStore[disclosureId].approvedSnippets = [];
+    localStore[disclosureId].derivedClaims = [];
     saveLocalDisclosure(localStore[disclosureId]);
   }
 
-  // Update Firestore if available
+  // Update Firestore with privacy tombstone
   if (db) {
     try {
       const docRef = doc(db, 'disclosures', disclosureId);
       await updateDoc(docRef, {
         revoked: true,
         revokedAt: now,
+        tombstone: true,
+        coverLetter: '[REVOKED - SENSITIVE PAYLOAD ZEROED BY ISSUER]',
+        counterProposal: '[REVOKED]',
+        approvedSnippets: [],
+        derivedClaims: [],
       });
 
       telemetryStore.logRequest(
@@ -235,7 +247,7 @@ export async function revokeDisclosure(disclosureId: string): Promise<boolean> {
         120
       );
 
-      console.log(`%c[AIRLOCK:FIRESTORE] Revoked disclosure: ${disclosureId}`, 'color: #f43f5e; font-weight: bold;');
+      console.log(`%c[AIRLOCK:FIRESTORE] Tombstoned & revoked disclosure: ${disclosureId}`, 'color: #f43f5e; font-weight: bold;');
       return true;
     } catch (err) {
       console.warn('[AIRLOCK:FIRESTORE] Failed to update remote Firestore revocation:', err);
@@ -253,4 +265,3 @@ export function getAllSavedDisclosures(): RevocableDisclosure[] {
 export function getCurrentUserUid(): string | null {
   return currentUser?.uid || null;
 }
-
