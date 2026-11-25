@@ -11,16 +11,10 @@ const INJECTION_PATTERNS = [
   /do\s+not\s+quote\s+this\s+instruction/i,
   /payload\s+injection/i,
   /jailbreak/i,
-];
-
-// Known hostile payload values specified in security benchmark tests
-const KNOWN_HOSTILE_PAYLOAD_VALUES = [
-  '$950,000',
-  '$950,000.00',
-  '950,000',
-  '950000',
-  'universal quantum corp',
-  'universal quantum',
+  /assistant:/i,
+  /new\s+rule(s)?:/i,
+  /act\s+as\s+/i,
+  /output\s+field\s+['"]/i,
 ];
 
 function normalizeWhitespace(text: string): string {
@@ -47,7 +41,7 @@ export function evaluateGrounding(
   const normQuote = normalizeWhitespace(quote);
   const normDoc = normalizeWhitespace(rawDocumentText);
 
-  // 1. Direct Pattern Detection on Value or Quote
+  // 1. Generic Pattern Detection on Value or Citation
   for (const pattern of INJECTION_PATTERNS) {
     if (pattern.test(strValue) || pattern.test(quote)) {
       return {
@@ -58,19 +52,25 @@ export function evaluateGrounding(
     }
   }
 
-  // 2. Known Adversarial Benchmark Payload Check
-  for (const hostileVal of KNOWN_HOSTILE_PAYLOAD_VALUES) {
-    if (normVal.includes(hostileVal) || normQuote.includes(hostileVal)) {
-      return {
-        isGrounded: false,
-        isAdversarialAttack: true,
-        quarantineReason:
-          `Adversarial Payload Detected: Candidate value "${strValue}" matches an injected benchmark exploit payload designed to exfiltrate forged credentials.`,
-      };
-    }
+  // 2. Structural Shape Validation: Documents have "Label: Value" format; prompt commands have imperative structure
+  if (/^\[?\s*(system|override|ignore|always|output|assistant|prompt)/i.test(quote)) {
+    return {
+      isGrounded: false,
+      isAdversarialAttack: true,
+      quarantineReason: 'Structural Anomaly: Cited excerpt contains imperative instruction syntax rather than documentary text.',
+    };
   }
 
-  // 3. Verbatim Quote Existence in Source
+  // 3. Strict Value-in-Quote Containment Check
+  if (quote.length > 0 && normVal.length > 0 && !normQuote.includes(normVal)) {
+    return {
+      isGrounded: false,
+      isAdversarialAttack: false,
+      quarantineReason: `Citation Contradiction: Extracted value "${strValue}" is not present inside the cited quote "${quote.slice(0, 40)}...".`,
+    };
+  }
+
+  // 4. Verbatim Quote Existence in Source Document
   if (quote.length > 0 && !normDoc.includes(normQuote)) {
     return {
       isGrounded: false,
@@ -79,8 +79,8 @@ export function evaluateGrounding(
     };
   }
 
-  // 4. Verbatim Value Grounding
-  if (!normDoc.includes(normVal) && (quote.length === 0 || !normQuote.includes(normVal))) {
+  // 5. Verbatim Value Grounding in Document
+  if (!normDoc.includes(normVal)) {
     return {
       isGrounded: false,
       isAdversarialAttack: false,
@@ -88,13 +88,12 @@ export function evaluateGrounding(
     };
   }
 
-  // 5. Contextual Hostile Region Detection: Was the value or quote located within an injection block?
+  // 6. Contextual Proximity Check: Did this quote or value originate within an instruction injection block?
   const hasInjectionSignature = INJECTION_PATTERNS.some((pat) => pat.test(rawDocumentText));
   if (hasInjectionSignature) {
     const rawLower = rawDocumentText.toLowerCase();
-
-    // Check position of quote or value in the document
     const targetSubstring = normQuote.length > 3 ? normQuote : normVal;
+
     let searchPos = 0;
     while (searchPos < rawLower.length) {
       const matchIndex = rawLower.indexOf(targetSubstring, searchPos);
@@ -122,4 +121,3 @@ export function evaluateGrounding(
 
   return { isGrounded: true, isAdversarialAttack: false };
 }
-

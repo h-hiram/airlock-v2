@@ -7,11 +7,10 @@ import {
   ExternalLink,
   ShieldAlert,
   Clock,
-  Eye,
   CheckCircle2,
   Lock,
 } from 'lucide-react';
-import type { ApprovedSnippet, RevocableDisclosure } from '../../types';
+import type { ApprovedSnippet, RevocableDisclosure, DerivedClaim } from '../../types';
 import { publishRevocableDisclosure, revokeDisclosure } from '../../lib/sharing/firestoreSharing';
 
 interface Props {
@@ -20,6 +19,7 @@ interface Props {
   counterProposal: string;
   coverLetter: string;
   approvedSnippets: ApprovedSnippet[];
+  derivedClaims?: DerivedClaim[];
   sha256Receipt: string;
   salt?: string;
   onOpenPortal: (disclosureId: string) => void;
@@ -31,6 +31,7 @@ export const RevocableShareCard: React.FC<Props> = ({
   counterProposal,
   coverLetter,
   approvedSnippets,
+  derivedClaims,
   sha256Receipt,
   salt,
   onOpenPortal,
@@ -52,6 +53,7 @@ export const RevocableShareCard: React.FC<Props> = ({
         counterProposal,
         coverLetter,
         approvedSnippets,
+        derivedClaims,
         sha256Receipt,
         salt,
         expiresInDays,

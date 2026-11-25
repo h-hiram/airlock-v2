@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Activity, ShieldCheck, Trash2, Cpu } from 'lucide-react';
+import { Activity, ShieldCheck, Trash2 } from 'lucide-react';
 import type { NetworkTelemetryEntry } from '../../types';
 import { telemetryStore } from '../../lib/network/telemetryStore';
 

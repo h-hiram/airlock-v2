@@ -6,11 +6,11 @@ import {
   Cpu,
   FileCheck,
   AlertTriangle,
-  Eye,
   Lock,
   Layers,
 } from 'lucide-react';
 import type { ExtractedCandidate, ApprovedSnippet } from '../../types';
+import type { ProbeGuardCheckResult } from '../../lib/defense/probeGuard';
 import { VisualRedactionCanvas } from '../canvas/VisualRedactionCanvas';
 
 interface Props {
@@ -23,6 +23,7 @@ interface Props {
   rawDocumentText?: string;
   documentTitle?: string;
   documentSizeBytes?: number;
+  probeWarning?: ProbeGuardCheckResult | null;
   onVerifyProof?: (fieldLabel: string, value: string | number, exactQuote: string) => void;
 }
 
@@ -36,6 +37,7 @@ export const SnippetApprovalList: React.FC<Props> = ({
   rawDocumentText = '',
   documentTitle = 'Local Document',
   documentSizeBytes = 0,
+  probeWarning,
   onVerifyProof,
 }) => {
   const [showCanvas, setShowCanvas] = useState(true);
@@ -115,6 +117,32 @@ export const SnippetApprovalList: React.FC<Props> = ({
           </div>
         </div>
 
+        {/* ProbeGuard Alert Banner */}
+        {probeWarning && probeWarning.isProbingAttack && (
+          <div
+            style={{
+              background: 'rgba(245, 158, 11, 0.15)',
+              border: '1px solid #f59e0b',
+              borderRadius: '8px',
+              padding: '12px 14px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '12px',
+            }}
+          >
+            <ShieldAlert size={20} color="#f59e0b" style={{ flexShrink: 0 }} />
+            <div>
+              <strong style={{ color: '#fff', fontSize: '13px' }}>
+                🛡️ PROBEGUARD PRIVACY WARNING: BINARY-SEARCH ATTACK DETECTED
+              </strong>
+              <div style={{ fontSize: '12px', color: '#fde68a', marginTop: '2px' }}>
+                {probeWarning.warningMessage ||
+                  'The counterparty has issued multiple threshold queries. Repeated binary-search queries can infer your exact values. Consider declining or answering with coarse ranges.'}
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Adversarial Attack Notification Banner */}
         {hasAdversarialAttacks && (
           <div
@@ -164,9 +192,9 @@ export const SnippetApprovalList: React.FC<Props> = ({
                 style={
                   isAttack
                     ? {
-                      border: '1px solid #e11d48',
-                      background: 'linear-gradient(135deg, rgba(225, 29, 72, 0.08) 0%, #0d1117 100%)',
-                    }
+                        border: '1px solid #e11d48',
+                        background: 'linear-gradient(135deg, rgba(225, 29, 72, 0.08) 0%, #0d1117 100%)',
+                      }
                     : undefined
                 }
               >
@@ -234,7 +262,58 @@ export const SnippetApprovalList: React.FC<Props> = ({
                   </div>
                 </div>
 
-                {candidate.found ? (
+                {/* Candidate Content: Derived Claim vs Exact Snippet */}
+                {candidate.derivedClaim ? (
+                  <div
+                    style={{
+                      background: '#070b14',
+                      border: '1px solid #1e293b',
+                      borderRadius: '8px',
+                      padding: '12px 14px',
+                      marginTop: '6px',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span style={{ fontSize: '11px', color: '#38bdf8', fontWeight: 700, letterSpacing: '0.5px' }}>
+                          ZERO-LEAKAGE DERIVED PREDICATE
+                        </span>
+                        <span
+                          style={{
+                            background: candidate.derivedClaim.result ? 'rgba(16, 185, 129, 0.2)' : 'rgba(244, 63, 94, 0.2)',
+                            color: candidate.derivedClaim.result ? '#34d399' : '#f43f5e',
+                            fontSize: '11px',
+                            fontWeight: 800,
+                            padding: '2px 8px',
+                            borderRadius: '4px',
+                          }}
+                        >
+                          {candidate.derivedClaim.result ? 'YES / VERIFIED' : 'NO / NOT MET'}
+                        </span>
+                      </div>
+                      <span style={{ fontSize: '10px', color: '#64748b', fontFamily: 'var(--font-mono)' }}>
+                        Hash: {candidate.derivedClaim.commitmentHash.slice(0, 16)}...
+                      </span>
+                    </div>
+
+                    <div style={{ fontSize: '14px', color: '#fff', fontWeight: 600 }}>
+                      {candidate.derivedClaim.statement}
+                    </div>
+
+                    <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: '4px' }}>
+                      🛡️ <strong>Zero-Leakage Guarantee:</strong> {candidate.derivedClaim.revealsSummary}
+                    </div>
+
+                    {candidate.exactQuote && (
+                      <div className="quote-box" style={{ marginTop: '8px' }}>
+                        <span style={{ fontSize: '11px', color: 'var(--text-dim)', display: 'block', marginBottom: '2px' }}>
+                          Verified Source Line (Local Enclave Only):
+                        </span>
+                        "{candidate.exactQuote}"
+                      </div>
+                    )}
+                  </div>
+                ) : candidate.found ? (
                   <>
                     <div style={{ display: 'flex', alignItems: 'baseline', gap: '10px', flexWrap: 'wrap' }}>
                       <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Extracted Value:</span>
@@ -272,10 +351,10 @@ export const SnippetApprovalList: React.FC<Props> = ({
                         style={
                           isAttack
                             ? {
-                              borderLeft: '3px solid #e11d48',
-                              background: 'rgba(225, 29, 72, 0.05)',
-                              color: '#fda4af',
-                            }
+                                borderLeft: '3px solid #e11d48',
+                                background: 'rgba(225, 29, 72, 0.05)',
+                                color: '#fda4af',
+                              }
                             : undefined
                         }
                       >
@@ -311,7 +390,9 @@ export const SnippetApprovalList: React.FC<Props> = ({
                         {onVerifyProof && (
                           <button
                             type="button"
-                            onClick={() => onVerifyProof(candidate.fieldLabel, candidate.value || '', candidate.exactQuote || '')}
+                            onClick={() =>
+                              onVerifyProof(candidate.fieldLabel, candidate.value || '', candidate.exactQuote || '')
+                            }
                             className="btn-preset"
                             style={{ fontSize: '11px', padding: '2px 8px', color: '#38bdf8' }}
                           >

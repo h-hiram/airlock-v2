@@ -8,14 +8,18 @@ import {
   CheckCircle2,
   Lock,
   ArrowLeft,
-  FileCheck,
   Award,
   Hash,
   AlertOctagon,
+  Info,
+  QrCode,
+  Printer,
+  X,
 } from 'lucide-react';
 import type { RevocableDisclosure } from '../../types';
 import { fetchPublicDisclosure, revokeDisclosure, getAllSavedDisclosures } from '../../lib/sharing/firestoreSharing';
 import { HashVerificationModal } from '../common/HashVerificationModal';
+import { generateQrCodeSvg } from '../../lib/sharing/qrGenerator';
 
 interface Props {
   disclosureId: string;
@@ -29,6 +33,7 @@ export const PublicVerificationView: React.FC<Props> = ({ disclosureId, onBackTo
   const [isOwner, setIsOwner] = useState(false);
   const [isRevoking, setIsRevoking] = useState(false);
   const [showRevokeConfirm, setShowRevokeConfirm] = useState(false);
+  const [showQrModal, setShowQrModal] = useState(false);
 
   const [verifyingSnippet, setVerifyingSnippet] = useState<{
     fieldLabel: string;
@@ -72,7 +77,19 @@ export const PublicVerificationView: React.FC<Props> = ({ disclosureId, onBackTo
     setIsRevoking(true);
     try {
       await revokeDisclosure(disclosure.id);
-      setDisclosure((prev) => (prev ? { ...prev, revoked: true, revokedAt: Date.now() } : null));
+      setDisclosure((prev) =>
+        prev
+          ? {
+              ...prev,
+              revoked: true,
+              revokedAt: Date.now(),
+              tombstone: true,
+              coverLetter: '[REVOKED - SENSITIVE PAYLOAD ZEROED BY ISSUER]',
+              approvedSnippets: [],
+              derivedClaims: [],
+            }
+          : null
+      );
       setShowRevokeConfirm(false);
     } finally {
       setIsRevoking(false);
@@ -86,7 +103,7 @@ export const PublicVerificationView: React.FC<Props> = ({ disclosureId, onBackTo
           <Shield size={36} color="#38bdf8" className="animate-spin" />
         </div>
         <h3 style={{ color: '#fff', fontSize: '18px' }}>Validating Cryptographic Attestation...</h3>
-        <p style={{ fontSize: '13px' }}>Resolving zero-knowledge disclosure record from Cloud Firestore</p>
+        <p style={{ fontSize: '13px' }}>Resolving selective disclosure record from Cloud Firestore</p>
       </div>
     );
   }
@@ -155,7 +172,7 @@ export const PublicVerificationView: React.FC<Props> = ({ disclosureId, onBackTo
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <h2 style={{ fontSize: '20px', fontWeight: 700, color: '#fff', margin: 0 }}>
-                  Airlock Certified Minimal Disclosure
+                  Airlock Certified Selective Disclosure
                 </h2>
                 {isValid && (
                   <span
@@ -174,17 +191,38 @@ export const PublicVerificationView: React.FC<Props> = ({ disclosureId, onBackTo
                 )}
               </div>
               <p style={{ fontSize: '13px', color: '#94a3b8', margin: '4px 0 0' }}>
-                Counterparty Verification Record issued to <strong>{disclosure.requesterName}</strong>
+                Selective Disclosure Record issued to <strong>{disclosure.requesterName}</strong>
               </p>
             </div>
           </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '8px' }}>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button
+                type="button"
+                className="btn-preset"
+                onClick={() => setShowQrModal(true)}
+                style={{ fontSize: '12px', padding: '4px 10px', display: 'inline-flex', alignItems: 'center', gap: '5px' }}
+                title="Scan QR Code on mobile"
+              >
+                <QrCode size={13} color="#38bdf8" />
+                <span>Mobile QR</span>
+              </button>
+              <button
+                type="button"
+                className="btn-preset"
+                onClick={() => window.print()}
+                style={{ fontSize: '12px', padding: '4px 10px', display: 'inline-flex', alignItems: 'center', gap: '5px' }}
+                title="Print or export certificate"
+              >
+                <Printer size={13} color="#94a3b8" />
+                <span>Print</span>
+              </button>
+            </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: '#64748b' }}>
               <Eye size={12} />
               <span>{disclosure.viewCount} views</span>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: '#64748b' }}>
+              <span>•</span>
               <Clock size={12} />
               <span>Issued: {new Date(disclosure.createdAt).toLocaleDateString()}</span>
             </div>
@@ -208,11 +246,10 @@ export const PublicVerificationView: React.FC<Props> = ({ disclosureId, onBackTo
               <ShieldAlert size={28} color="#f43f5e" style={{ flexShrink: 0 }} />
               <div>
                 <strong style={{ color: '#fff', fontSize: '15px', display: 'block' }}>
-                  DISCLOSURE PERMANENTLY REVOKED BY OWNER
+                  DISCLOSURE PERMANENTLY REVOKED (TOMBSTONED)
                 </strong>
                 <span style={{ fontSize: '12px', color: '#fecdd3' }}>
-                  The creator of this verification record exercised their 1-click revocation right. Access to all verified
-                  facts has been permanently terminated. This certificate is invalid.
+                  The creator of this verification record exercised their 1-click revocation right. All sensitive snippets and claims have been permanently wiped from both device cache and Cloud Firestore. Only the immutable SHA-256 receipt commitment remains for audit history.
                 </span>
               </div>
             </div>
@@ -234,7 +271,7 @@ export const PublicVerificationView: React.FC<Props> = ({ disclosureId, onBackTo
                   CERTIFICATE EXPIRED
                 </strong>
                 <span style={{ fontSize: '12px', color: '#fde68a' }}>
-                  The designated validity period of this disclosure has elapsed. Please request a refreshed minimal attestation.
+                  The designated validity period of this disclosure has elapsed. Please request a refreshed selective disclosure.
                 </span>
               </div>
             </div>
@@ -255,7 +292,7 @@ export const PublicVerificationView: React.FC<Props> = ({ disclosureId, onBackTo
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <CheckCircle2 size={18} color="#10b981" />
                 <span style={{ fontSize: '13px', color: '#e2e8f0' }}>
-                  <strong>Zero-Knowledge Attestation Active:</strong> Only requested fields disclosed. Source document sealed on owner's device.
+                  <strong>Selective Disclosure Active:</strong> Only requested fields and zero-leakage predicates disclosed. Raw document never left user's browser.
                 </span>
               </div>
               <span style={{ fontSize: '12px', color: '#34d399', fontWeight: 600 }}>
@@ -265,8 +302,92 @@ export const PublicVerificationView: React.FC<Props> = ({ disclosureId, onBackTo
           )}
         </div>
 
-        {/* Facts Table: Hidden if Revoked */}
-        {!isRevoked && (
+        {/* Derived Claims Section (Zero-Leakage Predicates) */}
+        {!isRevoked && disclosure.derivedClaims && disclosure.derivedClaims.length > 0 && (
+          <div style={{ marginTop: '24px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+              <span style={{ fontSize: '13px', fontWeight: 700, color: '#38bdf8', letterSpacing: '0.5px' }}>
+                ZERO-LEAKAGE DERIVED CLAIMS ({disclosure.derivedClaims.length})
+              </span>
+              <span style={{ fontSize: '11px', color: '#64748b' }}>
+                Evaluated locally • Exact raw numbers are sealed and never transmitted
+              </span>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              {disclosure.derivedClaims.map((claim) => (
+                <div
+                  key={claim.id}
+                  style={{
+                    background: '#070b14',
+                    border: '1px solid #1e293b',
+                    borderRadius: '8px',
+                    padding: '14px 16px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    flexWrap: 'wrap',
+                    gap: '12px',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <div
+                      style={{
+                        background: claim.result ? 'rgba(16, 185, 129, 0.2)' : 'rgba(244, 63, 94, 0.2)',
+                        border: `1px solid ${claim.result ? '#10b981' : '#f43f5e'}`,
+                        borderRadius: '6px',
+                        padding: '4px 10px',
+                        fontWeight: 800,
+                        fontSize: '13px',
+                        color: claim.result ? '#34d399' : '#f43f5e',
+                      }}
+                    >
+                      {claim.result ? 'YES / VERIFIED' : 'NO / NOT MET'}
+                    </div>
+                    <div>
+                      <strong style={{ color: '#fff', fontSize: '13px', display: 'block' }}>
+                        {claim.statement}
+                      </strong>
+                      <span style={{ fontSize: '11px', color: '#94a3b8' }}>
+                        {claim.revealsSummary}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span style={{ fontSize: '10px', color: '#64748b', fontFamily: 'var(--font-mono)' }}>
+                      Hash: {claim.commitmentHash.slice(0, 14)}...
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setVerifyingSnippet({
+                          fieldLabel: claim.statement,
+                          value: claim.result ? 'TRUE' : 'FALSE',
+                          exactQuote: claim.statement,
+                          fullHash: claim.commitmentHash,
+                          salt: claim.salt,
+                        })
+                      }
+                      className="btn-preset"
+                      style={{
+                        fontSize: '11px',
+                        padding: '3px 8px',
+                        color: '#38bdf8',
+                        borderColor: 'rgba(56, 189, 248, 0.4)',
+                      }}
+                    >
+                      🔍 Verify Proof
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Minimal Verified Facts Table: Hidden if Revoked */}
+        {!isRevoked && disclosure.approvedSnippets.length > 0 && (
           <div style={{ marginTop: '24px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
               <span style={{ fontSize: '13px', fontWeight: 700, color: '#38bdf8', letterSpacing: '0.5px' }}>
@@ -405,6 +526,31 @@ export const PublicVerificationView: React.FC<Props> = ({ disclosureId, onBackTo
           </div>
         )}
 
+        {/* Honest Proof Notice (Scope of Proof) */}
+        <div
+          style={{
+            marginTop: '24px',
+            background: 'rgba(30, 41, 59, 0.4)',
+            border: '1px solid #334155',
+            borderRadius: '8px',
+            padding: '14px 16px',
+            fontSize: '12px',
+            color: '#94a3b8',
+            lineHeight: '1.5',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px', color: '#f1f5f9' }}>
+            <Info size={14} color="#38bdf8" />
+            <strong style={{ fontSize: '12px' }}>Cryptographic Scope: What this proof does and does not prove</strong>
+          </div>
+          <p style={{ margin: '0 0 6px' }}>
+            • <strong>What it proves:</strong> Mathematical non-repudiation. The attested values, derived predicates, and quotes exactly match the cryptographic SHA-256 preimage committed by the user's browser, and have not been altered or tampered with since issuance.
+          </p>
+          <p style={{ margin: 0 }}>
+            • <strong>What it does not prove:</strong> It does not independently guarantee that the underlying source document is authentic (a user could theoretically feed a fabricated statement into their device).
+          </p>
+        </div>
+
         {/* Owner Self-Service Revocation Controls */}
         {isOwner && !isRevoked && (
           <div
@@ -426,7 +572,7 @@ export const PublicVerificationView: React.FC<Props> = ({ disclosureId, onBackTo
                 👑 You own this disclosure certificate
               </span>
               <span style={{ fontSize: '11px', color: '#64748b' }}>
-                You can revoke counterparty access immediately at any time.
+                You can revoke counterparty access immediately at any time. Revocation wipes sensitive snippets from both device and cloud storage.
               </span>
             </div>
 
@@ -495,7 +641,72 @@ export const PublicVerificationView: React.FC<Props> = ({ disclosureId, onBackTo
           onClose={() => setVerifyingSnippet(null)}
         />
       )}
+
+      {showQrModal && (
+        <div className="modal-backdrop" style={{ zIndex: 1200 }}>
+          <div
+            className="modal-content"
+            style={{
+              maxWidth: '380px',
+              width: '90%',
+              background: '#0d1321',
+              border: '1px solid #1e293b',
+              borderRadius: '12px',
+              padding: '24px',
+              textAlign: 'center',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: '16px',
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'center' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <QrCode size={18} color="#38bdf8" />
+                <span style={{ fontSize: '15px', fontWeight: 700, color: '#f8fafc' }}>Scan on Mobile</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowQrModal(false)}
+                style={{ background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer' }}
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <p style={{ fontSize: '12px', color: '#94a3b8', margin: 0 }}>
+              Scan with your phone camera to independently audit this selective disclosure certificate.
+            </p>
+
+            <div
+              dangerouslySetInnerHTML={{
+                __html: generateQrCodeSvg(typeof window !== 'undefined' ? window.location.href : disclosure.id, 200),
+              }}
+              style={{
+                display: 'flex',
+                justifyContent: 'center',
+                alignItems: 'center',
+                borderRadius: '8px',
+                overflow: 'hidden',
+                boxShadow: '0 4px 20px rgba(0, 0, 0, 0.4)',
+              }}
+            />
+
+            <div style={{ fontSize: '11px', fontFamily: 'monospace', color: '#64748b', wordBreak: 'break-all' }}>
+              ID: {disclosure.id}
+            </div>
+
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={() => setShowQrModal(false)}
+              style={{ width: '100%', padding: '8px' }}
+            >
+              Done
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
-
