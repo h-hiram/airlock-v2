@@ -56,6 +56,18 @@ function resolveTier(url: string): 'cloud_ai' | 'firestore' | 'app_check' | 'oth
   return 'other';
 }
 
+function sanitizeUrl(rawUrl: string): string {
+  try {
+    const parsed = new URL(rawUrl);
+    if (parsed.searchParams.has('key')) {
+      parsed.searchParams.set('key', '[PROTECTED_IN_ENV]');
+    }
+    return parsed.toString();
+  } catch {
+    return rawUrl.replace(/([?&]key=)[^&]+/gi, '$1[PROTECTED_IN_ENV]');
+  }
+}
+
 export function installNetworkTap(): void {
   if (isInterceptorInstalled || typeof window === 'undefined') {
     return;
@@ -94,15 +106,16 @@ export function installNetworkTap(): void {
       }
 
       if (tier !== 'other' || url.includes('googleapis.com')) {
+        const safeUrl = sanitizeUrl(url);
         console.log(
-          `%c[AIRLOCK:NETWORK-TAP] Outbound ${method} ➔ ${url} [${tier}] (%d bytes sent, %d bytes received, status: %d)`,
+          `%c[AIRLOCK:NETWORK-TAP] Outbound ${method} ➔ ${safeUrl} [${tier}] (%d bytes sent, %d bytes received, status: %d)`,
           'background: #1e1b4b; color: #c7d2fe; padding: 2px 6px; border-radius: 4px;',
           requestBytes,
           responseBytes,
           response.status
         );
         telemetryStore.recordEntry({
-          url,
+          url: safeUrl,
           method,
           requestBytes,
           responseBytes,
@@ -114,7 +127,7 @@ export function installNetworkTap(): void {
     } catch (error) {
       if (tier !== 'other') {
         telemetryStore.recordEntry({
-          url,
+          url: sanitizeUrl(url),
           method,
           requestBytes,
           responseBytes: 0,

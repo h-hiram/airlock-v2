@@ -11,7 +11,7 @@ export interface FirebaseClientStatus {
   isConfigured: boolean;
   hasAppCheck: boolean;
   projectId?: string;
-  source: 'env' | 'localStorage' | 'none';
+  source: 'env' | 'none';
   error?: string;
 }
 
@@ -30,21 +30,20 @@ let cachedApp: FirebaseApp | null = null;
 let cachedAI: AI | null = null;
 let cachedAppCheck: AppCheck | null = null;
 
-function resolveConfig(): { config: CustomFirebaseConfig | null; source: 'env' | 'localStorage' | 'none' } {
-  if (typeof window !== 'undefined') {
-    const stored = localStorage.getItem('airlock_firebase_config');
-    if (stored) {
-      try {
-        const parsed = JSON.parse(stored) as CustomFirebaseConfig;
-        if (parsed.apiKey && parsed.projectId && parsed.appId) {
-          return { config: parsed, source: 'localStorage' };
-        }
-      } catch (e) {
-        console.warn('Failed to parse stored firebase config', e);
-      }
-    }
+// Security Defense: Purge any legacy secrets stored in localStorage
+if (typeof window !== 'undefined') {
+  try {
+    localStorage.removeItem('airlock_firebase_config');
+  } catch {
+    // Ignore storage errors in restricted contexts
   }
+}
 
+/**
+ * Resolves Firebase configuration strictly from environment variables.
+ * Never reads from unencrypted localStorage or exposed client-side stores.
+ */
+function resolveConfig(): { config: CustomFirebaseConfig | null; source: 'env' | 'none' } {
   const envKey = import.meta.env.VITE_FIREBASE_API_KEY;
   const envProj = import.meta.env.VITE_FIREBASE_PROJECT_ID;
   const envApp = import.meta.env.VITE_FIREBASE_APP_ID;
@@ -78,12 +77,15 @@ export function getFirebaseStatus(): FirebaseClientStatus {
   };
 }
 
-export function saveCustomFirebaseConfig(config: CustomFirebaseConfig | null): void {
-  if (typeof window === 'undefined') return;
-  if (!config) {
-    localStorage.removeItem('airlock_firebase_config');
-  } else {
-    localStorage.setItem('airlock_firebase_config', JSON.stringify(config));
+/**
+ * No-op retained for backwards compatibility.
+ * Secrets are strictly forbidden from being written to localStorage.
+ */
+export function saveCustomFirebaseConfig(_config: CustomFirebaseConfig | null): void {
+  if (typeof window !== 'undefined') {
+    try {
+      localStorage.removeItem('airlock_firebase_config');
+    } catch {}
   }
   cachedApp = null;
   cachedAI = null;
@@ -109,7 +111,7 @@ export function initFirebase(): { app: FirebaseApp | null; ai: AI | null } {
       const activeDebugToken = config.debugToken || true;
 
       console.log(
-        '%c[AIRLOCK:FIREBASE] Initializing App Check with debug provider',
+        '%c[AIRLOCK:FIREBASE] Initializing App Check with debug provider (Protected in .env)',
         'background: #1e293b; color: #38bdf8; font-weight: bold; padding: 2px 6px; border-radius: 4px;'
       );
 

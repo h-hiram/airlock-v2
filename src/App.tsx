@@ -3,7 +3,6 @@ import {
   Shield,
   Cpu,
   Flame,
-  Settings,
   ArrowRight,
   ArrowLeft,
   CheckCircle2,
@@ -14,6 +13,7 @@ import {
   Hash,
   ShieldCheck,
   ShieldAlert,
+  Lock,
 } from 'lucide-react';
 import { InferenceMode } from 'firebase/ai';
 import { RequestAuditorView } from './components/audit/RequestAuditorView';
@@ -326,9 +326,10 @@ export default function App() {
             className="btn-preset"
             onClick={() => setIsConfigOpen(true)}
             style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+            title="Inspect Environment Security Architecture"
           >
-            <Settings size={14} />
-            <span>Configure AI</span>
+            <Lock size={14} color="#34d399" />
+            <span>Env Security</span>
           </button>
         </div>
       </header>
