@@ -88,7 +88,7 @@ export function installNetworkTap(): void {
       for (const canary of activeCanaries) {
         if (canary && (bodyText?.includes(canary) || url.includes(canary))) {
           console.error(
-            `%c🚨 [AIRLOCK:CANARY-LEAK-DETECTED] Active canary "${canary}" intercepted in outbound ${method} request to ${url}!`,
+            `%c[AIRLOCK:CANARY-LEAK-DETECTED] Active canary "${canary}" intercepted in outbound ${method} request to ${url}!`,
             'background: #881337; color: #fecdd3; font-weight: bold; padding: 4px;'
           );
           telemetryStore.recordCanaryLeak(canary, url);
@@ -108,7 +108,7 @@ export function installNetworkTap(): void {
       if (tier !== 'other' || url.includes('googleapis.com')) {
         const safeUrl = sanitizeUrl(url);
         console.log(
-          `%c[AIRLOCK:NETWORK-TAP] Outbound ${method} ➔ ${safeUrl} [${tier}] (%d bytes sent, %d bytes received, status: %d)`,
+          `%c[AIRLOCK:NETWORK-TAP] Outbound ${method} -> ${safeUrl} [${tier}] (%d bytes sent, %d bytes received, status: %d)`,
           'background: #1e1b4b; color: #c7d2fe; padding: 2px 6px; border-radius: 4px;',
           requestBytes,
           responseBytes,
