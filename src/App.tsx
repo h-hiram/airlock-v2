@@ -475,6 +475,37 @@ export default function App() {
 
         {currentStep === 4 && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+            {!activeReceipt && (
+              <div
+                style={{
+                  background: 'rgba(56, 189, 248, 0.08)',
+                  border: '1px solid rgba(56, 189, 248, 0.3)',
+                  borderRadius: '8px',
+                  padding: '14px 16px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  flexWrap: 'wrap',
+                  gap: '12px',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <ShieldCheck size={20} color="#38bdf8" />
+                  <span style={{ fontSize: '13px', color: '#e2e8f0' }}>
+                    <strong>Attestation & Revocation Registry:</strong> Inspect and test public verifier views and instant revocation below, or run through Steps 1 to 3 to synthesize and sign a new custom certificate.
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={() => setCurrentStep(1)}
+                  style={{ fontSize: '12px', padding: '6px 12px' }}
+                >
+                  Start Step 1 Flow
+                </button>
+              </div>
+            )}
+
             {activeReceipt && (
               <>
                 {/* Canary Privacy Audit Card */}
@@ -635,26 +666,26 @@ export default function App() {
                     </pre>
                   </div>
                 </div>
-
-                {/* Revocable Share Card */}
-                <RevocableShareCard
-                  requesterName={currentRequest.requesterName || 'Third-Party Requester'}
-                  requestText={currentRequest.rawRequestText}
-                  counterProposal={currentAudit?.politeCounterProposal || ''}
-                  coverLetter={finalCoverLetter}
-                  approvedSnippets={approvedSnippets}
-                  derivedClaims={approvedDerivedClaims}
-                  sha256Receipt={activeReceipt.sha256Attestation}
-                  salt={activeReceipt.salt}
-                  onOpenPortal={(id) => {
-                    setActiveVerifyId(id);
-                    if (typeof window !== 'undefined') {
-                      window.history.pushState({}, '', `?verify=${id}`);
-                    }
-                  }}
-                />
               </>
             )}
+
+            {/* Revocable Share & Attestation Management */}
+            <RevocableShareCard
+              requesterName={currentRequest.requesterName || 'Third-Party Requester'}
+              requestText={currentRequest.rawRequestText}
+              counterProposal={currentAudit?.politeCounterProposal || ''}
+              coverLetter={finalCoverLetter}
+              approvedSnippets={approvedSnippets}
+              derivedClaims={approvedDerivedClaims}
+              sha256Receipt={activeReceipt?.sha256Attestation || ''}
+              salt={activeReceipt?.salt || ''}
+              onOpenPortal={(id) => {
+                setActiveVerifyId(id);
+                if (typeof window !== 'undefined') {
+                  window.history.pushState({}, '', `?verify=${id}`);
+                }
+              }}
+            />
 
             <NetworkTapLog />
           </div>
