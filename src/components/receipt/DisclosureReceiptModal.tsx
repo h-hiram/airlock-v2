@@ -186,7 +186,7 @@ export const DisclosureReceiptModal: React.FC<Props> = ({ receipt, coverLetter, 
               )}
             </span>
             <span style={{ fontSize: '10px', color: '#10b981' }}>
-              🛡️ Cryptographically salted to guarantee zero dictionary or rainbow-table reversibility.
+              Cryptographically salted to guarantee zero dictionary or rainbow-table reversibility.
             </span>
           </div>
 

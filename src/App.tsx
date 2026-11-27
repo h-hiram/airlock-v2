@@ -44,6 +44,7 @@ import { extractFieldOnDevice, composeVerifiedAnswerSheet } from './lib/ai/hybri
 import { computeSha256, computeSaltedSha256, generateSalt } from './lib/defense/crypto';
 import { telemetryStore } from './lib/network/telemetryStore';
 import { recordAndCheckProbe, type ProbeGuardCheckResult } from './lib/defense/probeGuard';
+import { initRemoteConfig } from './lib/config/remoteConfig';
 
 export default function App() {
   const [currentStep, setCurrentStep] = useState<1 | 2 | 3 | 4>(1);
@@ -90,6 +91,7 @@ export default function App() {
   const refreshStatus = () => {
     runDeviceCalibration().then(setDeviceCalib);
     setFirebaseStatus(getFirebaseStatus());
+    initRemoteConfig().catch(() => {});
   };
 
   useEffect(() => {

@@ -66,7 +66,7 @@ export function recordAndCheckProbe(
     return {
       isProbingAttack: true,
       queryCount: distinctCount,
-      warningMessage: `⚠️ ProbeGuard Alert: Counterparty "${counterpartyName}" has submitted ${distinctCount} different threshold queries for "${fieldKey}". Binary-search threshold probing detected. Answering will incrementally narrow down and disclose your exact confidential value.`,
+      warningMessage: `ProbeGuard Alert: Counterparty "${counterpartyName}" has submitted ${distinctCount} different threshold queries for "${fieldKey}". Binary-search threshold probing detected. Answering will incrementally narrow down and disclose your exact confidential value.`,
     };
   }
 

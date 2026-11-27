@@ -163,7 +163,7 @@ export const PublicVerificationView: React.FC<Props> = ({ disclosureId, onBackTo
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                boxShadow: isValid ? '0 0 20px rgba(16, 185, 129, 0.4)' : '0 0 20px rgba(225, 29, 72, 0.4)',
+                border: isValid ? '1px solid #10b981' : '1px solid #f43f5e',
               }}
             >
               {isValid ? <ShieldCheck size={28} color="#fff" /> : <ShieldAlert size={28} color="#fff" />}
@@ -377,7 +377,7 @@ export const PublicVerificationView: React.FC<Props> = ({ disclosureId, onBackTo
                         borderColor: 'rgba(56, 189, 248, 0.4)',
                       }}
                     >
-                      🔍 Verify Proof
+                      Verify Proof
                     </button>
                   </div>
                 </div>
@@ -461,7 +461,7 @@ export const PublicVerificationView: React.FC<Props> = ({ disclosureId, onBackTo
                             borderColor: 'rgba(56, 189, 248, 0.4)',
                           }}
                         >
-                          🔍 Verify Proof
+                          Verify Proof
                         </button>
                       </td>
                     </tr>
@@ -569,7 +569,7 @@ export const PublicVerificationView: React.FC<Props> = ({ disclosureId, onBackTo
           >
             <div>
               <span style={{ fontSize: '12px', fontWeight: 600, color: '#f1f5f9', display: 'block' }}>
-                👑 You own this disclosure certificate
+                You own this disclosure certificate
               </span>
               <span style={{ fontSize: '11px', color: '#64748b' }}>
                 You can revoke counterparty access immediately at any time. Revocation wipes sensitive snippets from both device and cloud storage.

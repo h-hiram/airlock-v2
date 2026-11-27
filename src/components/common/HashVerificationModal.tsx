@@ -104,7 +104,7 @@ export const HashVerificationModal: React.FC<Props> = ({
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              boxShadow: '0 0 15px rgba(2, 132, 199, 0.4)',
+              border: '1px solid #38bdf8',
             }}
           >
             <ShieldCheck size={24} color="#fff" />
@@ -252,7 +252,7 @@ export const HashVerificationModal: React.FC<Props> = ({
           }}
         >
           <strong style={{ color: '#f1f5f9', display: 'block', marginBottom: '2px' }}>
-            🔒 Why is this salt mathematically uncomputable?
+            Why is this salt mathematically uncomputable?
           </strong>
           If an adversary observes the hash of a short string like <code>"$7,420.00"</code> without a salt, they could easily precalculate a rainbow table of all salaries in seconds. Because each Airlock snippet includes a unique 128-bit random salt, reversing this hash without access to the document requires 2<sup>128</sup> calculations (more operations than atoms in the visible universe).
         </div>

@@ -12,9 +12,11 @@ import { evaluateGrounding } from '../defense/groundingGate';
 import { evaluatePredicate } from '../defense/derivedClaims';
 import { runHeuristicAudit } from '../audit/scamDetector';
 import { traceStore } from './traceStore';
+import { getRemoteConfigValues } from '../config/remoteConfig';
 
 function getCloudModelName(): string {
-  return import.meta.env.VITE_GEMINI_MODEL || 'gemini-2.5-flash';
+  const rc = getRemoteConfigValues();
+  return rc.geminiCloudModel || import.meta.env.VITE_GEMINI_MODEL || 'gemini-2.5-flash';
 }
 
 const HARD_BLOCKED_CREDENTIALS = [

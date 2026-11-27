@@ -133,7 +133,7 @@ export const SnippetApprovalList: React.FC<Props> = ({
             <ShieldAlert size={20} color="#f59e0b" style={{ flexShrink: 0 }} />
             <div>
               <strong style={{ color: '#fff', fontSize: '13px' }}>
-                🛡️ PROBEGUARD PRIVACY WARNING: BINARY-SEARCH ATTACK DETECTED
+                PROBEGUARD PRIVACY WARNING: BINARY-SEARCH ATTACK DETECTED
               </strong>
               <div style={{ fontSize: '12px', color: '#fde68a', marginTop: '2px' }}>
                 {probeWarning.warningMessage ||
@@ -301,7 +301,7 @@ export const SnippetApprovalList: React.FC<Props> = ({
                     </div>
 
                     <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: '4px' }}>
-                      🛡️ <strong>Zero-Leakage Guarantee:</strong> {candidate.derivedClaim.revealsSummary}
+                      <strong>Zero-Leakage Guarantee:</strong> {candidate.derivedClaim.revealsSummary}
                     </div>
 
                     {candidate.exactQuote && (
@@ -415,7 +415,7 @@ export const SnippetApprovalList: React.FC<Props> = ({
                           lineHeight: '1.4',
                         }}
                       >
-                        <strong>{isAttack ? '🛡️ Grounding Gate Neutralization:' : '⚠️ Quarantine Reason:'}</strong>{' '}
+                        <strong>{isAttack ? 'Grounding Gate Neutralization:' : 'Quarantine Reason:'}</strong>{' '}
                         {candidate.quarantineReason}
                       </div>
                     )}

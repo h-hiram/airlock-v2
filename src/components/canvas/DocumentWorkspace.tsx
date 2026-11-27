@@ -68,11 +68,11 @@ export const DocumentWorkspace: React.FC<Props> = ({
           };
           onSelectDocument(customDoc);
           setCustomFileNotice(
-            `📄 Air-gapped PDF loaded: "${file.name}" (${file.size.toLocaleString()} bytes, ${res.totalPages} page${res.totalPages > 1 ? 's' : ''}). ${res.isScannedOnly ? '⚠️ Scanned PDF (no embedded text layer).' : 'Text layer extracted locally.'}`
+            `Air-gapped PDF loaded: "${file.name}" (${file.size.toLocaleString()} bytes, ${res.totalPages} page${res.totalPages > 1 ? 's' : ''}). ${res.isScannedOnly ? 'Scanned PDF (no embedded text layer).' : 'Text layer extracted locally.'}`
           );
         } catch (err) {
           console.error('PDF extraction failed:', err);
-          setCustomFileNotice(`⚠️ Failed to parse PDF text: ${String(err)}`);
+          setCustomFileNotice(`Failed to parse PDF text: ${String(err)}`);
         }
       };
       reader.readAsArrayBuffer(file);
@@ -91,7 +91,7 @@ export const DocumentWorkspace: React.FC<Props> = ({
           groundTruth: {},
         };
         onSelectDocument(customDoc);
-        setCustomFileNotice(`📷 Local photo loaded: "${file.name}" (${file.size.toLocaleString()} bytes). Held strictly on device.`);
+        setCustomFileNotice(`Local photo loaded: "${file.name}" (${file.size.toLocaleString()} bytes). Held strictly on device.`);
       };
       reader.readAsDataURL(file);
     } else {
@@ -108,7 +108,7 @@ export const DocumentWorkspace: React.FC<Props> = ({
           groundTruth: {},
         };
         onSelectDocument(customDoc);
-        setCustomFileNotice(`📝 Loaded custom local file "${file.name}" (${file.size.toLocaleString()} bytes). Stored in browser memory.`);
+        setCustomFileNotice(`Loaded custom local file "${file.name}" (${file.size.toLocaleString()} bytes). Stored in browser memory.`);
       };
       reader.readAsText(file);
     }
@@ -147,7 +147,7 @@ export const DocumentWorkspace: React.FC<Props> = ({
               onSelectDocument(SYNTHETIC_PAYSLIP_CLEAN);
             }}
           >
-            🏢 Clean Payslip
+            Clean Payslip
           </button>
           <button
             type="button"
@@ -162,7 +162,7 @@ export const DocumentWorkspace: React.FC<Props> = ({
                 : undefined
             }
           >
-            🚨 Adversarial Injection
+            Adversarial Injection
           </button>
           <button
             type="button"
@@ -177,7 +177,7 @@ export const DocumentWorkspace: React.FC<Props> = ({
                 : undefined
             }
           >
-            🇰🇪 Nairobi M-Pesa Statement
+            Nairobi M-Pesa Statement
           </button>
           <button
             type="button"
@@ -187,7 +187,7 @@ export const DocumentWorkspace: React.FC<Props> = ({
               onSelectDocument(SYNTHETIC_BANK_STATEMENT);
             }}
           >
-            🏦 Bank Statement
+            Bank Statement
           </button>
 
           <label className="btn-preset" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', cursor: 'pointer' }}>
@@ -218,7 +218,7 @@ export const DocumentWorkspace: React.FC<Props> = ({
             }}
           >
             <div style={{ fontSize: '11px', color: 'var(--text-dim)', alignSelf: 'flex-start' }}>
-              📷 <strong>Local Photo / Receipt Preview (In-Memory Buffer)</strong>
+              <strong>Local Photo / Receipt Preview (In-Memory Buffer)</strong>
             </div>
             <img
               src={selectedDocument.imageUrl}
@@ -332,7 +332,7 @@ export const DocumentWorkspace: React.FC<Props> = ({
               />
               <Cpu size={14} color="#10b981" />
               <span>
-                <strong>ONLY_ON_DEVICE (Airlock Default)</strong> — Strict Air-Gap. Raw document bytes never leave the browser sandbox.
+                <strong>ONLY_ON_DEVICE (Airlock Default)</strong>: Strict Air-Gap. Raw document bytes never leave the browser sandbox.
               </span>
             </label>
 
@@ -355,14 +355,14 @@ export const DocumentWorkspace: React.FC<Props> = ({
               />
               <CloudLightning size={14} color="#38bdf8" />
               <span>
-                <strong>PREFER_ON_DEVICE (Cloud Fallback)</strong> — Uses Nano; permits cloud fallback only if device model is missing.
+                <strong>PREFER_ON_DEVICE (Cloud Fallback)</strong>: Uses Nano; permits cloud fallback only if device model is missing.
               </span>
             </label>
           </div>
 
           {routingMode === 'prefer_on_device' && (
             <div style={{ fontSize: '11px', color: '#fde68a', background: 'rgba(245, 158, 11, 0.1)', padding: '6px 10px', borderRadius: '4px' }}>
-              ⚠️ <strong>Air-Gap Warning:</strong> In PREFER_ON_DEVICE mode, if Chrome Gemini Nano is unavailable on your hardware, extraction will fallback to Cloud Gemini. Choose ONLY_ON_DEVICE to guarantee raw text never touches the network.
+              <strong>Air-Gap Notice:</strong> In PREFER_ON_DEVICE mode, if Chrome Gemini Nano is unavailable on your hardware, extraction will fallback to Cloud Gemini. Choose ONLY_ON_DEVICE to guarantee raw text never touches the network.
             </div>
           )}
         </div>

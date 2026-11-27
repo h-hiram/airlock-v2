@@ -18,7 +18,7 @@ const RULES: HeuristicRule[] = [
     pattern: /\b(phone\s+contacts|contact\s+book|call\s+logs|sms\s+inbox|access\s+contacts)\b/i,
     category: 'over_asking',
     warning: 'DATA HARVESTING DETECTED: Loan apps demanding contact books or call logs violate the statutory Data Minimisation Principle. Qualification requires only income proof.',
-    statutoryReference: 'Kenya Data Protection Act 2019 (Section 3) & GDPR Art. 5(1)(c) — Data Minimisation Principle',
+    statutoryReference: 'Kenya Data Protection Act 2019 (Section 3) & GDPR Art. 5(1)(c): Data Minimisation Principle',
   },
   {
     pattern: /\b(online\s+banking\s+login|bank\s+password|routing\s+credentials)\b/i,

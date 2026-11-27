@@ -262,6 +262,88 @@ export function getAllSavedDisclosures(): RevocableDisclosure[] {
   return Object.values(store).sort((a, b) => b.createdAt - a.createdAt);
 }
 
+export function seedSampleDisclosure(): RevocableDisclosure {
+  const now = Date.now();
+  const sampleId = `disc_demo_${Math.random().toString(36).slice(2, 7)}`;
+  const sample: RevocableDisclosure = {
+    id: sampleId,
+    ownerUid: 'demo_user_issuer',
+    requesterName: 'Westlands Property Management Ltd',
+    requestText:
+      'Tenant Screening: Please provide your last 3 months payslips, full bank statements, and national ID copy to prove monthly net income of at least KES 150,000.',
+    counterProposal:
+      'Counter-Proposal: Disclose selective attestation of net income predicate (at least KES 150,000) and employer verification with salted SHA-256 cryptographic proof. Zero raw documents shared.',
+    coverLetter: `ATTRIBUTED SELECTIVE DISCLOSURE CERTIFICATE
+Recipient: Westlands Property Management Ltd
+Subject: Residential Lease Pre-Qualification
+Issuer: Verified Airlock Client
+
+This cryptographic certificate attests to the following facts extracted on-device via Gemini Nano:
+1. Derived Predicate: Net Monthly Salary is at least KES 150,000 (Result: TRUE)
+2. Employer Verification: Acme Technologies Africa Ltd (Exact Match)
+3. Employment Status: Active / Confirmed
+
+All unrequested personal data (National ID, Tax PIN, Bank Account Number, Deductions) has been sealed on-device and never transmitted over the network.`,
+    approvedSnippets: [
+      {
+        fieldKey: 'employerName',
+        fieldLabel: 'Employer Name',
+        value: 'Acme Technologies Africa Ltd',
+        exactQuote: 'EMPLOYER: Acme Technologies Africa Ltd',
+        pageNumber: 1,
+        sourceHash: '4f8b2d1c6e9a7b3c5e8d0a2f4c6b8d0e2a4f6c8b0d2e4f6a8c0e2b4d6f8a0c2e',
+        salt: '9a8b7c6d5e4f3a2b1c0d',
+        approvedByUser: true,
+      },
+      {
+        fieldKey: 'employmentStatus',
+        fieldLabel: 'Employment Status',
+        value: 'Permanent & Full-time',
+        exactQuote: 'STATUS: Permanent & Full-time',
+        pageNumber: 1,
+        sourceHash: '8b0d2e4f6a8c0e2b4d6f8a0c2e4f8b2d1c6e9a7b3c5e8d0a2f4c6b8d0e2a4f6c',
+        salt: '1a2b3c4d5e6f7a8b9c0d',
+        approvedByUser: true,
+      },
+    ],
+    derivedClaims: [
+      {
+        id: 'claim_demo_income',
+        predicateKind: 'amount_at_least',
+        fieldKey: 'netSalary',
+        fieldLabel: 'Net Monthly Income',
+        result: true,
+        statement: 'Net Monthly Income is at least KES 150,000',
+        revealsSummary:
+          'Shares one yes/no answer: whether Net Monthly Income is at least KES 150,000. Actual salary remains sealed.',
+        approvedByUser: true,
+        commitmentHash: '7c6b8d0e2a4f6c8b0d2e4f6a8c0e2b4d6f8a0c2e4f8b2d1c6e9a7b3c5e8d0a2f',
+        salt: '4e5f6a7b8c9d0e1f2a3b',
+      },
+    ],
+    createdAt: now,
+    expiresAt: now + 7 * 24 * 60 * 60 * 1000,
+    revoked: false,
+    viewCount: 1,
+    sha256Receipt: '3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b',
+    salt: 'f1e2d3c4b5a698701234',
+  };
+
+  saveLocalDisclosure(sample);
+  return sample;
+}
+
+export function deleteLocalDisclosure(disclosureId: string): void {
+  if (typeof window === 'undefined') return;
+  try {
+    const store = getLocalDisclosures();
+    delete store[disclosureId];
+    localStorage.setItem(LOCAL_STORAGE_DISCLOSURES_KEY, JSON.stringify(store));
+  } catch (e) {
+    console.warn('[Airlock] Failed to delete disclosure from localStorage', e);
+  }
+}
+
 export function getCurrentUserUid(): string | null {
   return currentUser?.uid || null;
 }

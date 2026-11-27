@@ -55,7 +55,7 @@ export const HeroExplainerBanner: React.FC<Props> = ({ onSelectScenario, activeS
           className={`btn-preset ${activeScenarioId === 'clean_payslip' ? 'active' : ''}`}
           style={{ fontSize: '12px', padding: '5px 12px' }}
         >
-          🏢 1. Global Tenancy (Clean)
+          1. Tenancy Verification (Clean)
         </button>
 
         <button
@@ -69,7 +69,7 @@ export const HeroExplainerBanner: React.FC<Props> = ({ onSelectScenario, activeS
             color: activeScenarioId === 'hostile_payslip' ? '#fda4af' : undefined,
           }}
         >
-          🚨 2. Prompt-Injection Attack Test
+          2. Adversarial Injection Test
         </button>
 
         <button
@@ -83,7 +83,7 @@ export const HeroExplainerBanner: React.FC<Props> = ({ onSelectScenario, activeS
             color: activeScenarioId === 'nairobi_tenancy' ? '#6ee7b7' : undefined,
           }}
         >
-          🇰🇪 3. Nairobi Tenancy (M-Pesa)
+          3. Nairobi M-Pesa Income
         </button>
 
         <button
@@ -97,7 +97,7 @@ export const HeroExplainerBanner: React.FC<Props> = ({ onSelectScenario, activeS
             color: activeScenarioId === 'scam_loan' ? '#fde68a' : undefined,
           }}
         >
-          🛡️ 4. Phishing Loan App (KDPA §3)
+          4. Data Minimisation Audit (KDPA Sec 3)
         </button>
 
         {onOpenScoreboard && (

@@ -308,7 +308,6 @@ export const VisualRedactionCanvas: React.FC<Props> = ({
                   background: 'rgba(16, 185, 129, 0.12)',
                   borderLeft: '4px solid #10b981',
                   padding: '2px 16px',
-                  boxShadow: 'inset 0 0 15px rgba(16, 185, 129, 0.08)',
                 }}
               >
                 <span
@@ -378,7 +377,7 @@ export const VisualRedactionCanvas: React.FC<Props> = ({
               key={line.lineIndex}
               title={
                 viewMode === 'redacted'
-                  ? '🔒 Sealed locally in browser memory. Not transmitted over network.'
+                  ? 'Sealed locally in browser memory. Not transmitted over network.'
                   : `X-RAY VIEW: ${line.raw}`
               }
               style={{

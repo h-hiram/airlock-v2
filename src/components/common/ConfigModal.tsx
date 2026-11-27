@@ -1,6 +1,7 @@
 import React from 'react';
-import { ShieldCheck, X, RefreshCw, Lock, CheckCircle2, AlertTriangle, Key, HardDrive, Database } from 'lucide-react';
+import { ShieldCheck, X, RefreshCw, Lock, CheckCircle2, AlertTriangle, Key, HardDrive, Database, Sliders } from 'lucide-react';
 import { getFirebaseStatus } from '../../lib/ai/client';
+import { getRemoteConfigValues } from '../../lib/config/remoteConfig';
 
 interface Props {
   isOpen: boolean;
@@ -10,6 +11,7 @@ interface Props {
 
 export const ConfigModal: React.FC<Props> = ({ isOpen, onClose, onConfigUpdated }) => {
   const status = getFirebaseStatus();
+  const rc = getRemoteConfigValues();
 
   if (!isOpen) return null;
 
@@ -259,6 +261,46 @@ export const ConfigModal: React.FC<Props> = ({ isOpen, onClose, onConfigUpdated 
                 }}
               >
                 {status.hasAppCheck ? 'App Check Active' : 'Debug Token Armed'}
+              </span>
+              <CheckCircle2 size={14} color="#34d399" />
+            </div>
+          </div>
+
+          {/* Card 5: Firebase Remote Config */}
+          <div
+            style={{
+              background: '#131826',
+              border: '1px solid #232c40',
+              borderRadius: '8px',
+              padding: '12px 14px',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <Sliders size={16} color="#38bdf8" />
+              <div>
+                <div style={{ fontSize: '13px', fontWeight: 600, color: '#f8fafc' }}>
+                  Firebase Remote Config
+                </div>
+                <div style={{ fontSize: '11px', color: '#64748b' }}>
+                  Dynamic Model: <code>{rc.geminiCloudModel}</code> (Threshold limit: {rc.probeThresholdLimit})
+                </div>
+              </div>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <span
+                style={{
+                  fontSize: '11px',
+                  background: rc.status === 'active' ? 'rgba(56, 189, 248, 0.1)' : 'rgba(148, 163, 184, 0.1)',
+                  color: rc.status === 'active' ? '#38bdf8' : '#94a3b8',
+                  padding: '3px 8px',
+                  borderRadius: '4px',
+                  border: `1px solid ${rc.status === 'active' ? 'rgba(56, 189, 248, 0.2)' : 'rgba(148, 163, 184, 0.2)'}`,
+                }}
+              >
+                {rc.status === 'active' ? 'Live Cloud Sync' : 'In-App Defaults'}
               </span>
               <CheckCircle2 size={14} color="#34d399" />
             </div>
