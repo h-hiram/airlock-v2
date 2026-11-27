@@ -8,7 +8,7 @@
 
 ## 1. Executive Summary & Value Proposition
 
-In modern digital verification, individuals are routinely coerced into uploading multi-page, unredacted documents—such as annual tax returns, 6-month bank ledgers, medical records, or employment contracts—to prove simple atomic facts (e.g., net monthly pay $\ge \$5,000$, current employer, or tenancy stability). This practice causes catastrophic personal data over-exposure, exposing sensitive account numbers, tax identification pins, itemized spending histories, and physical addresses.
+In modern digital verification, individuals are routinely coerced into uploading multi-page, unredacted documents (such as annual tax returns, 6-month bank ledgers, medical records, or employment contracts) to prove simple atomic facts (e.g., net monthly pay $\ge \$5,000$, current employer, or tenancy stability). This practice causes catastrophic personal data over-exposure, exposing sensitive account numbers, tax identification pins, itemized spending histories, and physical addresses.
 
 **Airlock v2 flips the traditional document inspection paradigm upside down:**
 Instead of sending your documents to an auditor, **the auditor's questions drive local extraction on your device**. 
@@ -170,8 +170,29 @@ Visit `http://localhost:5173` to explore Airlock v2!
 
 To verify the air-gapped guarantee during evaluation:
 1. Open Airlock v2 in your browser.
-2. Select **🏢 Clean Payslip** or drop your own `.pdf` statement.
+2. Select **Clean Payslip** or drop your own `.pdf` statement.
 3. Plan the verification request.
 4. **Turn ON Airplane Mode** (disconnect Wi-Fi/Ethernet).
 5. Click **Extract on Device (ONLY_ON_DEVICE)**.
 6. Observe that extraction, grounding verification, and zero-leakage predicates complete successfully with zero active internet connection!
+
+---
+
+## 7. Firebase Product Integration Matrix
+
+Airlock v2 integrates the complete suite of Firebase developer products specified in the hackathon guidelines:
+
+| Firebase Product | Runtime Import | Architectural Role in Airlock v2 |
+| :--- | :--- | :--- |
+| **Firebase AI Logic** | `firebase/ai` | Hybrid inference router (`InferenceMode.ONLY_ON_DEVICE` for local Gemini Nano extraction + `InferenceMode.ONLY_IN_CLOUD` for blind planning and synthesis). |
+| **Firebase App Check** | `firebase/app-check` | Replay defense and API protection; provisions debug tokens (`.env.local`) and reCAPTCHA Enterprise envelopes for all outbound AI and Firestore calls. |
+| **Firebase Cloud Firestore** | `firebase/firestore` | Stores time-limited, attested selective disclosure certificates and powers 1-click cryptographic revocation / privacy tombstoning. |
+| **Firebase Authentication** | `firebase/auth` | Anonymous cryptographic identity (`signInAnonymously`) ensuring only the issuing device can tombstone and revoke certificates. |
+| **Firebase Remote Config** | `firebase/remote-config` | Dynamic cloud parameter synchronization (`gemini_cloud_model`, anti-probing threshold limits, strict grounding toggles) with zero redeployment. |
+
+---
+
+## 8. Open Source License
+
+This project is licensed under the **Apache License, Version 2.0**. See the [LICENSE](LICENSE) file for complete details.
+
